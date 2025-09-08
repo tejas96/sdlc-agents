@@ -1,0 +1,76 @@
+services:
+  api:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./apps/api:/app
+    environment:
+      # Database Configuration
+      - DATABASE_URL=postgresql+asyncpg://postgres:sdlc_agents_pass@postgres:5432/sdlc_agents
+      # Startup configuration
+      - STARTUP_LOCK_ID=424242
+      - DB_CONNECT_MAX_RETRIES=30
+      - DB_CONNECT_DELAY_SECONDS=2.0
+      - AGENTS_DIR=/app/workspaces/
+      - PROJECTS_DIR=/app/projects/
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - sdlc_agents_network
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: sdlc_agents_postgres
+    environment:
+      POSTGRES_DB: sdlc_agents
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_INITDB_ARGS: "--locale=C.UTF-8"
+      LC_ALL: C.UTF-8
+      LANG: C.UTF-8
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d sdlc_agents"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - sdlc_agents_network
+
+  # Optional: Add Redis for caching and task queues
+  redis:
+    image: redis:7-alpine
+    container_name: sdlc_agents_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - sdlc_agents_network
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  sdlc_agents_network:
+    driver: bridge

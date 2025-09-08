@@ -1,0 +1,38 @@
+{
+  "name": "sdlc-agents",
+  "version": "1.0.0",
+  "private": true,
+  "description": "SDLC Agents - FastAPI Backend for Software Development Lifecycle Management",
+  "scripts": {
+    "dev": "cd apps/api && make run HOST=0.0.0.0 PORT=8000 RELOAD=true",
+    "dev:api": "cd apps/api && make run HOST=0.0.0.0 PORT=8000 RELOAD=true",
+    "test": "cd apps/api && make test",
+    "test:api": "cd apps/api && make test",
+    "test:api:cov": "cd apps/api && make test",
+    "format:api": "cd apps/api && make format",
+    "lint:api": "cd apps/api && make lint",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:build": "docker-compose build",
+    "docker:logs": "docker-compose logs -f",
+    "docker:logs:api": "docker-compose logs -f api",
+    "setup": "echo 'SDLC Agents setup complete. Run pnpm dev to start the API server.'"
+  },
+  "keywords": [
+    "fastapi",
+    "sdlc",
+    "agents",
+    "software-development",
+    "lifecycle-management",
+    "automation",
+    "ai",
+    "python",
+    "poetry"
+  ],
+  "author": "SDLC Agents Team",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0",
+    "python": ">=3.11.0"
+  }
+}
