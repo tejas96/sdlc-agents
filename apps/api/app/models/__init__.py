@@ -1,15 +1,15 @@
 """Database models package."""
 
-from .base import BaseModel, AuditedModel
-from .user import User
-from .project import Project
 from .agent import Agent
-from .workflow import Workflow
+from .base import AuditedModel, BaseModel
 from .integration import Integration
+from .project import Project
+from .user import User
+from .workflow import Workflow
 
 __all__ = [
     "BaseModel",
-    "AuditedModel", 
+    "AuditedModel",
     "User",
     "Project",
     "Agent",

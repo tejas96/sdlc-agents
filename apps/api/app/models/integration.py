@@ -40,42 +40,42 @@ class IntegrationStatus(str, Enum):
 
 class Integration(AuditedModel, table=True):
     """Integration model for external service connections."""
-    
+
     __tablename__ = "integrations"
-    
+
     name: str = Field(index=True, description="Integration name")
     slug: str = Field(unique=True, index=True, description="Integration URL slug")
     description: str | None = Field(default=None, description="Integration description")
     integration_type: IntegrationType = Field(description="Type of integration")
     status: IntegrationStatus = Field(default=IntegrationStatus.ACTIVE, description="Integration status")
-    
+
     # Connection configuration
     config: str | None = Field(default=None, description="Integration configuration (JSON)")
     credentials: str | None = Field(default=None, description="Encrypted credentials (JSON)")
-    
+
     # API settings
     api_url: str | None = Field(default=None, description="API base URL")
     api_version: str | None = Field(default=None, description="API version")
     rate_limit: int | None = Field(default=None, description="Rate limit per hour")
-    
+
     # OAuth settings (for OAuth-based integrations)
     oauth_client_id: str | None = Field(default=None, description="OAuth client ID")
     oauth_scopes: str | None = Field(default=None, description="OAuth scopes (JSON array)")
     oauth_token: str | None = Field(default=None, description="Encrypted OAuth token")
     oauth_refresh_token: str | None = Field(default=None, description="Encrypted OAuth refresh token")
     oauth_expires_at: str | None = Field(default=None, description="OAuth token expiration")
-    
+
     # Webhook settings
     webhook_url: str | None = Field(default=None, description="Webhook URL")
     webhook_secret: str | None = Field(default=None, description="Webhook secret")
     webhook_events: str | None = Field(default=None, description="Webhook events (JSON array)")
-    
+
     # Monitoring and health
     last_health_check_at: str | None = Field(default=None, description="Last health check timestamp")
     health_check_status: str | None = Field(default=None, description="Health check status")
     total_requests: int = Field(default=0, description="Total API requests made")
     failed_requests: int = Field(default=0, description="Failed API requests")
-    
+
     # Owner
     owner_id: int = Field(foreign_key="users.id", description="Integration owner")
     owner: "User" = Relationship(back_populates="integrations")

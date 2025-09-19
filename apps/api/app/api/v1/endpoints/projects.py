@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Query, status
 
 from app.api.deps import CurrentUser, DatabaseSession
 from app.crud.project import project_crud
@@ -22,7 +22,7 @@ async def get_projects(
     """Get all projects for the current user."""
     projects = await project_crud.get_by_owner(db, owner_id=current_user.id, skip=skip, limit=limit)
     total = await project_crud.count(db)
-    
+
     return {
         "projects": projects,
         "total": total,
@@ -45,14 +45,14 @@ async def get_project(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Project not found",
         )
-    
+
     # Check if user owns the project (or is superuser)
     if project.owner_id != current_user.id and not current_user.is_superuser:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions to access this project",
         )
-    
+
     return project
 
 
@@ -70,7 +70,7 @@ async def create_project(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="A project with this slug already exists",
         )
-    
+
     project = await project_crud.create(
         db,
         obj_in=project_in,
@@ -95,14 +95,14 @@ async def update_project(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Project not found",
         )
-    
+
     # Check if user owns the project (or is superuser)
     if project.owner_id != current_user.id and not current_user.is_superuser:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions to update this project",
         )
-    
+
     # Check slug uniqueness if being updated
     if project_update.slug and project_update.slug != project.slug:
         existing_project = await project_crud.get_by_slug(db, slug=project_update.slug)
@@ -111,7 +111,7 @@ async def update_project(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="A project with this slug already exists",
             )
-    
+
     project = await project_crud.update(
         db,
         db_obj=project,
@@ -133,13 +133,13 @@ async def delete_project(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Project not found",
         )
-    
+
     # Check if user owns the project (or is superuser)
     if project.owner_id != current_user.id and not current_user.is_superuser:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions to delete this project",
         )
-    
+
     await project_crud.remove(db, id=project_id)
     return {"message": "Project deleted successfully"}

@@ -27,7 +27,7 @@ class CRUDUser(CRUDBase[User, UserCreate, UserUpdate]):
         password = obj_in_data.pop("password")
         obj_in_data["hashed_password"] = get_password_hash(password)
         obj_in_data.update(kwargs)
-        
+
         db_obj = User(**obj_in_data)
         db.add(db_obj)
         await db.commit()

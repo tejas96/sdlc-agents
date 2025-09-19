@@ -4,7 +4,7 @@ from datetime import datetime
 
 from pydantic import BaseModel
 
-from app.models.integration import IntegrationType, IntegrationStatus
+from app.models.integration import IntegrationStatus, IntegrationType
 
 
 class IntegrationResponse(BaseModel):

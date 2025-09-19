@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import auth, projects, agents, workflows, integrations, monitoring
+from app.api.v1.endpoints import agents, auth, dashboard, files, integrations, monitoring, projects, workflows
 
 api_router = APIRouter()
 
@@ -76,6 +76,30 @@ api_router.include_router(
         400: {"description": "Bad request"},
         404: {"description": "Resource not found"},
         502: {"description": "Upstream service error"},
+        422: {"description": "Validation error"},
+    },
+)
+
+# File management endpoints
+api_router.include_router(
+    files.router,
+    prefix="/files",
+    tags=["Files"],
+    responses={
+        401: {"description": "Unauthorized"},
+        404: {"description": "File not found"},
+        413: {"description": "File too large"},
+        422: {"description": "Validation error"},
+    },
+)
+
+# Dashboard endpoints
+api_router.include_router(
+    dashboard.router,
+    prefix="/dashboard",
+    tags=["Dashboard"],
+    responses={
+        401: {"description": "Unauthorized"},
         422: {"description": "Validation error"},
     },
 )

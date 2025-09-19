@@ -1,0 +1,78 @@
+Please analyze the following requirements and create a comprehensive set of development tickets that are ready for implementation.
+
+## Requirements to Process:
+
+{% for message in messages %}
+{% if message.type == "requirements_document" %}
+### Requirements Document: {{ message.title }}
+**Source**: {{ message.source }}
+**Priority**: {{ message.priority }}
+
+{{ message.content }}
+
+{% elif message.type == "feature_request" %}
+### Feature Request: {{ message.title }}
+**Requested by**: {{ message.requestor }}
+**Business Value**: {{ message.business_value }}
+**Priority**: {{ message.priority }}
+
+**Description**:
+{{ message.description }}
+
+**Expected Outcome**:
+{{ message.expected_outcome }}
+
+{% elif message.type == "user_story" %}
+### User Story: {{ message.title }}
+**As a** {{ message.user_type }}
+**I want** {{ message.want }}
+**So that** {{ message.so_that }}
+
+**Additional Details**:
+{{ message.details }}
+
+{% elif message.type == "business_requirement" %}
+### Business Requirement: {{ message.title }}
+**Category**: {{ message.category }}
+**Stakeholder**: {{ message.stakeholder }}
+
+{{ message.description }}
+
+{% else %}
+### Requirement Context:
+{{ message.content }}
+{% endif %}
+{% endfor %}
+
+## Ticket Creation Guidelines:
+
+### Structure Requirements:
+1. **Epic Level**: High-level initiatives that span multiple sprints
+2. **Story Level**: User-facing features with business value
+3. **Task Level**: Technical implementation details
+4. **Subtask Level**: Granular development work
+
+### Quality Checklist:
+- Clear, actionable titles (< 80 characters)
+- Detailed descriptions with background context
+- Specific acceptance criteria using Given-When-Then format
+- Proper story point estimation (Fibonacci sequence)
+- Appropriate priority based on business impact
+- Relevant labels and components
+
+### Estimation Guidelines:
+- **1 point**: Simple changes, quick fixes (< 4 hours)
+- **2 points**: Small features, minor enhancements (< 1 day)
+- **3 points**: Medium features with some complexity (1-2 days)
+- **5 points**: Complex features requiring design (3-5 days)
+- **8 points**: Large features with multiple components (1 week)
+- **13 points**: Very large features, consider breaking down (2 weeks)
+
+## Context:
+- Workspace: {{ workspace_dir }}
+- Follow agile best practices and INVEST criteria
+- Ensure tickets are development-ready with clear requirements
+- Create logical dependencies between related tickets
+- Include technical considerations and potential risks
+
+Please generate a complete ticket breakdown that transforms these requirements into actionable development work.

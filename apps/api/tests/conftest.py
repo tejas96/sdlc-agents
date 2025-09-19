@@ -92,7 +92,7 @@ def mock_settings() -> Generator[MagicMock, None, None]:
         mock_settings_obj.ENVIRONMENT = "test"
         mock_settings_obj.DEBUG = True
         mock_settings_obj.LOG_LEVEL = "DEBUG"
-        mock_settings_obj.PORT = 8000
+        mock_settings_obj.PORT = 8001
         mock_settings_obj.ENABLE_DOCS = True
         mock_settings_obj.ENABLE_REDOC = True
         mock_get_settings.return_value = mock_settings_obj
@@ -106,3 +106,51 @@ def event_loop() -> Generator[asyncio.AbstractEventLoop, None, None]:
     loop = asyncio.get_event_loop_policy().new_event_loop()
     yield loop
     loop.close()
+
+
+# Test data fixtures
+@pytest.fixture
+async def test_user(db_session: AsyncSession):
+    """Create a test user."""
+    from app.models.user import User, Provider
+    
+    user = User(
+        name="Test User",
+        email="test@example.com",
+        provider=Provider.PASS,
+        is_active=True,
+    )
+    db_session.add(user)
+    await db_session.commit()
+    await db_session.refresh(user)
+    return user
+
+
+@pytest.fixture
+async def test_agent(db_session: AsyncSession, test_user):
+    """Create a test agent."""
+    from app.models.agent import Agent, AgentType, AgentStatus
+    
+    agent = Agent(
+        name="Test Agent",
+        slug="test-agent",
+        description="A test agent",
+        agent_type=AgentType.CODE_REVIEWER,
+        status=AgentStatus.ACTIVE,
+        owner_id=test_user.id,
+        created_by=test_user.id,
+        updated_by=test_user.id,
+    )
+    db_session.add(agent)
+    await db_session.commit()
+    await db_session.refresh(agent)
+    return agent
+
+
+@pytest.fixture
+def auth_headers(test_user) -> dict:
+    """Create authentication headers for testing."""
+    # Mock JWT token for testing
+    return {
+        "Authorization": "Bearer test-token"
+    }
