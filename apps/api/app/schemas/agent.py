@@ -4,7 +4,7 @@ from datetime import datetime
 
 from pydantic import BaseModel
 
-from app.models.agent import AgentType, AgentStatus
+from app.models.agent import AgentStatus, AgentType
 
 
 class AgentResponse(BaseModel):

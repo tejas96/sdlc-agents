@@ -4,19 +4,28 @@
   "private": true,
   "description": "SDLC Agents - FastAPI Backend for Software Development Lifecycle Management",
   "scripts": {
-    "dev": "cd apps/api && make run HOST=0.0.0.0 PORT=8000 RELOAD=true",
-    "dev:api": "cd apps/api && make run HOST=0.0.0.0 PORT=8000 RELOAD=true",
-    "test": "cd apps/api && make test",
+    "dev": "concurrently \"pnpm dev:api\" \"pnpm dev:web\"",
+    "dev:api": "cd apps/api && make run HOST=0.0.0.0 PORT=8001 RELOAD=true",
+    "dev:web": "cd apps/web && pnpm dev",
+    "build": "pnpm build:web",
+    "build:api": "cd apps/api && make build",
+    "build:web": "cd apps/web && pnpm build",
+    "test": "pnpm test:api && pnpm test:web",
     "test:api": "cd apps/api && make test",
+    "test:web": "cd apps/web && pnpm test",
     "test:api:cov": "cd apps/api && make test",
+    "lint": "pnpm lint:api && pnpm lint:web",
     "format:api": "cd apps/api && make format",
     "lint:api": "cd apps/api && make lint",
+    "lint:web": "cd apps/web && pnpm lint",
+    "type-check:web": "cd apps/web && pnpm type-check",
     "docker:up": "docker-compose up -d",
     "docker:down": "docker-compose down",
     "docker:build": "docker-compose build",
     "docker:logs": "docker-compose logs -f",
     "docker:logs:api": "docker-compose logs -f api",
-    "setup": "echo 'SDLC Agents setup complete. Run pnpm dev to start the API server.'"
+    "docker:logs:web": "docker-compose logs -f web",
+    "setup": "echo 'SDLC Agents setup complete. Run pnpm dev to start both API and Web servers.'"
   },
   "keywords": [
     "fastapi",
@@ -34,5 +43,8 @@
   "engines": {
     "node": ">=18.0.0",
     "python": ">=3.11.0"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
   }
 }

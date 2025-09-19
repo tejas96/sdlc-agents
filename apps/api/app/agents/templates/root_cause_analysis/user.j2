@@ -1,0 +1,70 @@
+Please analyze the following incident data and determine the root cause using systematic investigation methods.
+
+## Incident Information:
+
+{% for message in messages %}
+{% if message.type == "incident_report" %}
+### Incident Report
+- **Incident ID**: {{ message.incident_id }}
+- **Start Time**: {{ message.start_time }}
+- **End Time**: {{ message.end_time }}
+- **Severity**: {{ message.severity }}
+- **Description**: {{ message.description }}
+- **Affected Services**: {{ message.affected_services | join(", ") }}
+
+{% elif message.type == "error_logs" %}
+### Error Logs
+{% for log in message.logs %}
+**{{ log.timestamp }}** [{{ log.level }}] {{ log.service }}: {{ log.message }}
+{% endfor %}
+
+{% elif message.type == "metrics_data" %}
+### Metrics Data
+{% for metric in message.metrics %}
+- **{{ metric.name }}**: {{ metric.value }} at {{ metric.timestamp }}
+{% endfor %}
+
+{% elif message.type == "alerts" %}
+### Alerts Triggered
+{% for alert in message.alerts %}
+- **{{ alert.name }}**: {{ alert.description }} ({{ alert.severity }}) at {{ alert.timestamp }}
+{% endfor %}
+
+{% elif message.type == "deployment_info" %}
+### Recent Deployments
+{% for deployment in message.deployments %}
+- **{{ deployment.service }}**: Version {{ deployment.version }} deployed at {{ deployment.timestamp }} by {{ deployment.author }}
+{% endfor %}
+
+{% elif message.type == "config_changes" %}
+### Configuration Changes
+{% for change in message.changes %}
+- **{{ change.component }}**: {{ change.description }} at {{ change.timestamp }} by {{ change.author }}
+{% endfor %}
+
+{% elif message.type == "user_reports" %}
+### User Reports
+{% for report in message.reports %}
+- **{{ report.timestamp }}**: {{ report.description }} (Severity: {{ report.severity }})
+{% endfor %}
+
+{% else %}
+### Additional Context:
+{{ message.content }}
+{% endif %}
+{% endfor %}
+
+## Investigation Objectives:
+1. Identify the primary root cause of this incident
+2. Determine contributing factors that enabled the failure
+3. Analyze the timeline and sequence of events
+4. Assess why existing monitoring/alerting didn't prevent this
+5. Recommend specific prevention and detection improvements
+
+## Analysis Context:
+- Workspace: {{ workspace_dir }}
+- Use systematic root cause analysis techniques
+- Correlate data across different sources to build a complete picture
+- Focus on evidence-based conclusions
+
+Please provide a thorough root cause analysis following the structured investigation framework.

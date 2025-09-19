@@ -1,27 +1,39 @@
-# SDLC Agents
+# SDLC Agent - Intelligent Development Lifecycle
 
-A comprehensive Software Development Lifecycle (SDLC) management system built with FastAPI and modern Python technologies. This system provides automated agents, workflow orchestration, and integration capabilities for managing software development processes.
+A production-ready, full-stack Software Development Lifecycle (SDLC) management platform built with **FastAPI** backend and **Next.js** frontend. This system provides AI-powered agents, workflow automation, and comprehensive project analytics for managing modern software development processes.
 
 ## 🏗️ Architecture
 
-This project follows a clean, modular architecture pattern based on FastAPI best practices:
+This monorepo follows modern full-stack architecture with clear separation of concerns:
 
 ```
 sdlc-agents/
 ├── apps/
-│   └── api/                    # FastAPI backend
-│       ├── app/
-│       │   ├── main.py        # FastAPI app entry point
-│       │   ├── core/          # Configuration and database
-│       │   ├── api/           # API routes and endpoints
-│       │   ├── models/        # SQLModel database models
-│       │   ├── schemas/       # Pydantic schemas
-│       │   ├── crud/          # Database operations
-│       │   └── utils/         # Utility functions
-│       ├── tests/             # Test suite
-│       ├── alembic/           # Database migrations
-│       └── pyproject.toml     # Poetry dependencies
-├── docker-compose.yml        # Container orchestration
+│   ├── api/                    # FastAPI backend
+│   │   ├── app/
+│   │   │   ├── main.py        # FastAPI app entry point
+│   │   │   ├── core/          # Configuration and database
+│   │   │   ├── api/           # API routes and endpoints
+│   │   │   ├── models/        # SQLModel database models
+│   │   │   ├── schemas/       # Pydantic schemas
+│   │   │   ├── crud/          # Database operations
+│   │   │   └── utils/         # Utility functions
+│   │   ├── tests/             # API test suite
+│   │   ├── alembic/           # Database migrations
+│   │   └── pyproject.toml     # Poetry dependencies
+│   └── web/                   # Next.js frontend
+│       ├── src/
+│       │   ├── app/           # Next.js App Router
+│       │   ├── components/    # React components
+│       │   ├── hooks/         # React Query hooks
+│       │   ├── lib/           # API client & utilities
+│       │   ├── services/      # Business logic
+│       │   ├── stores/        # State management
+│       │   └── types/         # TypeScript types
+│       ├── public/            # Static assets
+│       └── package.json       # pnpm dependencies
+├── docker-compose.yml        # Full-stack orchestration
+├── pnpm-workspace.yaml       # Workspace configuration
 └── README.md                 # This file
 ```
 
@@ -105,14 +117,35 @@ graph TB
 
 ### Prerequisites
 
-- **Python** 3.11+
-- **Poetry** (for Python dependency management)
-- **Docker** (optional, for containerized development)
-- **PostgreSQL** (for production, SQLite works for development)
+- **Node.js** 18+ with **pnpm** (for frontend)
+- **Python** 3.11+ with **Poetry** (for backend)
+- **Docker** (recommended for database and full-stack development)
+- **PostgreSQL** (for production, included in Docker setup)
 
 ### Installation
 
-#### 1. Install Python 3.11+
+#### 1. Install Node.js 18+ and pnpm
+
+**Option A: Using Node Version Manager (recommended)**
+
+```bash
+# Install nvm (on macOS/Linux)
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
+
+# Install Node.js 18
+nvm install 18
+nvm use 18
+
+# Install pnpm
+npm install -g pnpm
+```
+
+**Option B: Direct installation**
+
+- Visit [nodejs.org](https://nodejs.org/) and download Node.js 18+
+- Install pnpm: `npm install -g pnpm`
+
+#### 2. Install Python 3.11+
 
 **Option A: Using pyenv (recommended)**
 
@@ -190,19 +223,26 @@ poetry --version  # Should show 1.6.0 or higher
 
    ```bash
    # Check all prerequisites
+   node --version      # Should be 18+
+   pnpm --version      # Should be 8+
    python --version    # Should be 3.11+
    poetry --version    # Should be 1.6+
-   docker --version    # Optional
+   docker --version    # Optional but recommended
    ```
 
-3. **Install Python dependencies**
+3. **Install dependencies**
 
    ```bash
-   # Navigate to API directory
-   cd apps/api
+   # Install frontend dependencies
+   cd apps/web
+   pnpm install
 
-   # Install dependencies with Poetry
+   # Install backend dependencies
+   cd ../api
    poetry install
+
+   # Return to root for workspace commands
+   cd ../..
    ```
 
 4. **Set up environment variables**
@@ -257,28 +297,47 @@ poetry --version  # Should show 1.6.0 or higher
      --is-superuser
    ```
 
-7. **Start the development server**
+7. **Start the development servers**
+
+   **Option A: Full-stack development (recommended)**
 
    ```bash
-   # Option A: Using make (recommended)
-   make run
+   # Start both API and Web servers
+   pnpm dev
+   ```
 
-   # Option B: Using Poetry directly
-   poetry run python manage.py run --reload
+   **Option B: Individual services**
 
-   # Option C: Using manage.py
-   python manage.py run --host 0.0.0.0 --port 8000 --reload
+   ```bash
+   # Terminal 1: Start API server
+   pnpm dev:api
+
+   # Terminal 2: Start Web server  
+   pnpm dev:web
+   ```
+
+   **Option C: Using Docker**
+
+   ```bash
+   # Start all services with Docker
+   pnpm docker:up
    ```
 
 8. **Verify setup**
 
    ```bash
    # Test API health endpoint
-   curl http://localhost:8000/health
+   curl http://localhost:8001/health
 
-   # Visit API documentation
-   # http://localhost:8000/docs
+   # Test Web application
+   curl http://localhost:3000
    ```
+
+   **Access the applications:**
+   - **Frontend**: http://localhost:3000 (Next.js app)
+   - **Backend API**: http://localhost:8001 (FastAPI)
+   - **API Docs**: http://localhost:8001/docs (Swagger UI)
+   - **ReDoc**: http://localhost:8001/redoc (Alternative docs)
 
 ### Using Docker (Alternative Setup)
 
@@ -299,9 +358,9 @@ docker-compose down
 
 Once the API is running, visit:
 
-- **Swagger UI**: http://localhost:8000/docs
-- **ReDoc**: http://localhost:8000/redoc
-- **OpenAPI JSON**: http://localhost:8000/api/v1/openapi.json
+- **Swagger UI**: http://localhost:8001/docs
+- **ReDoc**: http://localhost:8001/redoc
+- **OpenAPI JSON**: http://localhost:8001/api/v1/openapi.json
 
 ### Key Endpoints
 
@@ -343,7 +402,7 @@ Once the API is running, visit:
 
 ```bash
 # Register a new user
-curl -X POST "http://localhost:8000/api/v1/auth/register" \
+curl -X POST "http://localhost:8001/api/v1/auth/register" \
   -H "Content-Type: application/json" \
   -d '{
     "email": "user@example.com",
@@ -353,7 +412,7 @@ curl -X POST "http://localhost:8000/api/v1/auth/register" \
   }'
 
 # Login
-curl -X POST "http://localhost:8000/api/v1/auth/login" \
+curl -X POST "http://localhost:8001/api/v1/auth/login" \
   -H "Content-Type: application/json" \
   -d '{
     "email": "user@example.com",
@@ -365,7 +424,7 @@ curl -X POST "http://localhost:8000/api/v1/auth/login" \
 
 ```bash
 # Create project (requires JWT token)
-curl -X POST "http://localhost:8000/api/v1/projects/" \
+curl -X POST "http://localhost:8001/api/v1/projects/" \
   -H "Authorization: Bearer YOUR_JWT_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -379,7 +438,24 @@ curl -X POST "http://localhost:8000/api/v1/projects/" \
 
 ## 🧪 Testing
 
+### Full-Stack Testing
+
 ```bash
+# Run all tests (API + Web)
+pnpm test
+
+# Run API tests only
+pnpm test:api
+
+# Run Web tests only  
+pnpm test:web
+```
+
+### Backend Testing (FastAPI)
+
+```bash
+cd apps/api
+
 # Run all tests
 make test
 
@@ -391,6 +467,24 @@ poetry run pytest tests/test_auth.py -v
 
 # Run tests with database
 poetry run pytest tests/ -v --tb=short
+```
+
+### Frontend Testing (Next.js)
+
+```bash
+cd apps/web
+
+# Run all tests
+pnpm test
+
+# Run tests in watch mode
+pnpm test:watch
+
+# Run tests with UI
+pnpm test:ui
+
+# Type checking
+pnpm type-check
 ```
 
 ## 🎨 Code Quality
@@ -497,7 +591,7 @@ python manage.py create-user --email user@example.com --username user --password
 # Server operations
 python manage.py run              # Start server
 python manage.py run --reload     # Start with auto-reload
-python manage.py run --host 0.0.0.0 --port 8000
+python manage.py run --host 0.0.0.0 --port 8001
 ```
 
 ### Makefile Commands
@@ -514,17 +608,35 @@ make clean               # Clean cache files
 
 ### Current Features
 
+**Backend (FastAPI)**
 - ✅ FastAPI backend with async support
-- ✅ User authentication with JWT tokens
+- ✅ User authentication with JWT tokens  
 - ✅ Project management and tracking
 - ✅ AI agent creation and management
 - ✅ Workflow definition and orchestration
 - ✅ Integration management (GitHub, Jira, Slack)
 - ✅ RESTful API with comprehensive documentation
 - ✅ Database migrations with Alembic
-- ✅ Docker containerization
-- ✅ Comprehensive test suite
-- ✅ Code quality tools and CI/CD
+- ✅ Comprehensive test suite with pytest
+
+**Frontend (Next.js)**
+- ✅ Modern Next.js 15 with App Router
+- ✅ TypeScript for type safety
+- ✅ Tailwind CSS with custom design system
+- ✅ React Query for data fetching
+- ✅ Glass morphism UI inspired by design.html
+- ✅ Responsive design (mobile-first)
+- ✅ Component library (Button, Card, Table, Modal, etc.)
+- ✅ Dashboard with real-time stats
+- ✅ Agent management interface
+- ✅ Project tracking views
+- ✅ Comprehensive testing with Vitest
+
+**DevOps & Infrastructure**
+- ✅ Docker containerization for both services
+- ✅ Docker Compose for full-stack development
+- ✅ pnpm workspace for monorepo management
+- ✅ Code quality tools and linting
 - ✅ Health monitoring and metrics
 
 ### Planned Features
@@ -539,7 +651,7 @@ make clean               # Clean cache files
 
 ## 🛠️ Technology Stack
 
-### Backend
+### Backend (FastAPI)
 
 - **FastAPI** - Modern, fast web framework for Python
 - **SQLModel** - SQL databases using Python type hints
@@ -549,11 +661,25 @@ make clean               # Clean cache files
 - **Poetry** - Dependency management
 - **pytest** - Testing framework
 
+### Frontend (Next.js)
+
+- **Next.js 15** - React framework with App Router
+- **TypeScript** - Type-safe JavaScript
+- **Tailwind CSS v4** - Utility-first CSS framework
+- **React Query** - Data fetching and caching
+- **Headless UI** - Accessible UI components
+- **Heroicons** - Beautiful hand-crafted SVG icons
+- **Recharts** - Composable charting library
+- **Vitest** - Fast unit testing framework
+- **React Testing Library** - Simple testing utilities
+
 ### DevOps & Tools
 
-- **Docker** - Containerization
-- **GitHub Actions** - CI/CD pipelines
-- **Black** & **isort** - Code formatting
+- **Docker** - Containerization for both services
+- **pnpm** - Fast, disk space efficient package manager
+- **Turborepo** - High-performance build system
+- **ESLint** & **Prettier** - Code linting and formatting
+- **Black** & **isort** - Python code formatting
 - **Ruff** - Fast Python linter
 - **mypy** - Static type checking
 

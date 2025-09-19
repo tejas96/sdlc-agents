@@ -1,8 +1,8 @@
 """Monitoring endpoints."""
 
-from typing import Any, Dict
+from typing import Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter
 
 from app.api.deps import CurrentUser, DatabaseSession
 from app.crud.agent import agent_crud
@@ -14,7 +14,7 @@ router = APIRouter()
 
 
 @router.get("/health")
-async def get_health_status() -> Dict[str, str]:
+async def get_health_status() -> dict[str, str]:
     """Get overall system health status."""
     return {
         "status": "healthy",
@@ -27,18 +27,18 @@ async def get_health_status() -> Dict[str, str]:
 async def get_system_stats(
     db: DatabaseSession,
     current_user: CurrentUser,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Get system statistics for the current user."""
     # Count user's resources
     user_projects = await project_crud.get_by_owner(db, owner_id=current_user.id)
     user_agents = await agent_crud.get_by_owner(db, owner_id=current_user.id)
     user_workflows = await workflow_crud.get_by_owner(db, owner_id=current_user.id)
     user_integrations = await integration_crud.get_by_owner(db, owner_id=current_user.id)
-    
+
     # Active agents and workflows
     active_agents = await agent_crud.get_active(db)
     active_workflows = await workflow_crud.get_active(db)
-    
+
     return {
         "user_stats": {
             "projects": len(user_projects),
@@ -62,22 +62,22 @@ async def get_system_stats(
 async def get_metrics(
     db: DatabaseSession,
     current_user: CurrentUser,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Get detailed metrics and performance data."""
     # Agent execution metrics
     user_agents = await agent_crud.get_by_owner(db, owner_id=current_user.id)
     total_executions = sum(agent.total_executions for agent in user_agents)
     successful_executions = sum(agent.successful_executions for agent in user_agents)
-    
+
     # Workflow execution metrics
     user_workflows = await workflow_crud.get_by_owner(db, owner_id=current_user.id)
     total_workflow_runs = sum(workflow.total_runs for workflow in user_workflows)
     successful_workflow_runs = sum(workflow.successful_runs for workflow in user_workflows)
-    
+
     # Integration health
     user_integrations = await integration_crud.get_by_owner(db, owner_id=current_user.id)
     active_integrations = [i for i in user_integrations if i.status == "active"]
-    
+
     return {
         "agent_metrics": {
             "total_executions": total_executions,

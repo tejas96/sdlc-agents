@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Query, status
 
 from app.api.deps import CurrentUser, DatabaseSession
 from app.crud.workflow import workflow_crud
@@ -30,9 +30,9 @@ async def get_workflows(
         )
     else:
         workflows = await workflow_crud.get_by_owner(db, owner_id=current_user.id, skip=skip, limit=limit)
-    
+
     total = await workflow_crud.count(db)
-    
+
     return {
         "workflows": workflows,
         "total": total,
@@ -55,14 +55,14 @@ async def get_workflow(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Workflow not found",
         )
-    
+
     # Check if user owns the workflow (or is superuser)
     if workflow.owner_id != current_user.id and not current_user.is_superuser:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions to access this workflow",
         )
-    
+
     return workflow
 
 
@@ -80,7 +80,7 @@ async def create_workflow(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="A workflow with this slug already exists",
         )
-    
+
     workflow = await workflow_crud.create(
         db,
         obj_in=workflow_in,
@@ -105,14 +105,14 @@ async def update_workflow(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Workflow not found",
         )
-    
+
     # Check if user owns the workflow (or is superuser)
     if workflow.owner_id != current_user.id and not current_user.is_superuser:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions to update this workflow",
         )
-    
+
     # Check slug uniqueness if being updated
     if workflow_update.slug and workflow_update.slug != workflow.slug:
         existing_workflow = await workflow_crud.get_by_slug(db, slug=workflow_update.slug)
@@ -121,7 +121,7 @@ async def update_workflow(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="A workflow with this slug already exists",
             )
-    
+
     workflow = await workflow_crud.update(
         db,
         db_obj=workflow,
@@ -143,14 +143,14 @@ async def delete_workflow(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Workflow not found",
         )
-    
+
     # Check if user owns the workflow (or is superuser)
     if workflow.owner_id != current_user.id and not current_user.is_superuser:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions to delete this workflow",
         )
-    
+
     await workflow_crud.remove(db, id=workflow_id)
     return {"message": "Workflow deleted successfully"}
 
@@ -168,13 +168,13 @@ async def trigger_workflow(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Workflow not found",
         )
-    
+
     # Check if user owns the workflow (or is superuser)
     if workflow.owner_id != current_user.id and not current_user.is_superuser:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions to trigger this workflow",
         )
-    
+
     # TODO: Implement workflow execution logic
     return {"message": "Workflow triggered successfully"}

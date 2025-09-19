@@ -1,23 +1,23 @@
 """User database model."""
 
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING
 
 from sqlmodel import Field, Relationship, SQLModel
 
 from app.models.base import BaseModel
 
 if TYPE_CHECKING:
-    from app.models.project import Project
     from app.models.agent import Agent
-    from app.models.workflow import Workflow
     from app.models.integration import Integration
+    from app.models.project import Project
+    from app.models.workflow import Workflow
 
 
 class User(BaseModel, table=True):
     """User model for authentication and authorization."""
-    
+
     __tablename__ = "users"
-    
+
     email: str = Field(unique=True, index=True, description="User email address")
     username: str = Field(unique=True, index=True, description="Username")
     full_name: str | None = Field(default=None, description="Full name")
@@ -26,24 +26,24 @@ class User(BaseModel, table=True):
     is_superuser: bool = Field(default=False, description="Whether user has superuser privileges")
     avatar_url: str | None = Field(default=None, description="Avatar URL")
     bio: str | None = Field(default=None, description="User biography")
-    
+
     # Organization fields
     organization: str | None = Field(default=None, description="Organization name")
     role: str | None = Field(default=None, description="User role in organization")
-    
+
     # Preferences
     timezone: str = Field(default="UTC", description="User timezone")
     theme: str = Field(default="light", description="UI theme preference")
-    
+
     # External integrations
     github_username: str | None = Field(default=None, description="GitHub username")
     slack_user_id: str | None = Field(default=None, description="Slack user ID")
-    
+
     # Relationships
-    owned_projects: List["Project"] = Relationship(back_populates="owner")
-    agents: List["Agent"] = Relationship(back_populates="owner")
-    workflows: List["Workflow"] = Relationship(back_populates="owner")
-    integrations: List["Integration"] = Relationship(back_populates="owner")
+    owned_projects: list["Project"] = Relationship(back_populates="owner")
+    agents: list["Agent"] = Relationship(back_populates="owner")
+    workflows: list["Workflow"] = Relationship(back_populates="owner")
+    integrations: list["Integration"] = Relationship(back_populates="owner")
 
 
 class UserBase(SQLModel):

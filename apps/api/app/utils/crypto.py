@@ -1,8 +1,10 @@
 """Cryptographic utilities for encrypting/decrypting sensitive data."""
 
-from cryptography.fernet import Fernet
-from app.core.config import get_settings
 import base64
+
+from cryptography.fernet import Fernet
+
+from app.core.config import get_settings
 
 
 def _get_fernet() -> Fernet:

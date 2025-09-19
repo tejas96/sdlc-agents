@@ -3,9 +3,8 @@
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
-
 from app.core.config import get_settings
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
 
 MODEL_PATHS = ["app.models"]
 
@@ -57,6 +56,18 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
     """
     async with get_async_session() as session:
         yield session
+
+
+# Alias for backward compatibility
+get_session = get_async_session
+
+
+async def init_db() -> None:
+    """Initialize database and create tables if they don't exist."""
+    # Import all models to ensure they are registered with SQLAlchemy
+
+    # This will ensure the engine is created
+    get_engine()
 
 
 async def close_db_connection() -> None:

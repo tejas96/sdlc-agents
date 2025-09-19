@@ -8,8 +8,8 @@ from sqlmodel import Field, Relationship, SQLModel
 from app.models.base import AuditedModel
 
 if TYPE_CHECKING:
-    from app.models.user import User
     from app.models.project import Project
+    from app.models.user import User
 
 
 class WorkflowStatus(str, Enum):
@@ -34,28 +34,28 @@ class WorkflowTrigger(str, Enum):
 
 class Workflow(AuditedModel, table=True):
     """Workflow model for managing automated SDLC processes."""
-    
+
     __tablename__ = "workflows"
-    
+
     name: str = Field(index=True, description="Workflow name")
     slug: str = Field(unique=True, index=True, description="Workflow URL slug")
     description: str | None = Field(default=None, description="Workflow description")
     status: WorkflowStatus = Field(default=WorkflowStatus.ACTIVE, description="Workflow status")
-    
+
     # Workflow configuration
     trigger_type: WorkflowTrigger = Field(description="How the workflow is triggered")
     trigger_config: str | None = Field(default=None, description="Trigger configuration (JSON)")
     steps: str = Field(description="Workflow steps definition (JSON)")
-    
+
     # Scheduling (for scheduled workflows)
     schedule_cron: str | None = Field(default=None, description="Cron schedule")
     timezone: str = Field(default="UTC", description="Timezone for scheduling")
-    
+
     # Execution settings
     timeout_minutes: int = Field(default=60, description="Workflow timeout in minutes")
     max_retries: int = Field(default=3, description="Maximum retry attempts")
     parallel_execution: bool = Field(default=False, description="Allow parallel execution")
-    
+
     # Metrics and monitoring
     total_runs: int = Field(default=0, description="Total number of runs")
     successful_runs: int = Field(default=0, description="Number of successful runs")
@@ -63,11 +63,11 @@ class Workflow(AuditedModel, table=True):
     last_run_at: str | None = Field(default=None, description="Last run timestamp")
     last_run_status: str | None = Field(default=None, description="Last run status")
     average_duration_seconds: float | None = Field(default=None, description="Average execution duration")
-    
+
     # Project association
     project_id: int | None = Field(foreign_key="projects.id", description="Associated project")
     project: "Project" = Relationship(back_populates="workflows")
-    
+
     # Owner
     owner_id: int = Field(foreign_key="users.id", description="Workflow owner")
     owner: "User" = Relationship(back_populates="workflows")
