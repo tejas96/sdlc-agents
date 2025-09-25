@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any
 
 
 @dataclass
@@ -32,9 +32,4 @@ class OAuthProviderContract(ABC):
     @abstractmethod
     async def close(self) -> None:
         """Close the provider."""
-        pass
-
-    @abstractmethod
-    def get_authorization_url(self, redirect_uri: str, scopes: list[str], state: Optional[str] = None) -> str:
-        """Get authorization URL for a provider."""
         pass
