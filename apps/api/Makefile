@@ -40,15 +40,8 @@ lint:
 # Run the app via manage.py run. Accepts ARGS or HOST/PORT/RELOAD variables.
 run:
 	@echo "🚀 Starting app via manage.py run"
-	@if [ -n "$(ARGS)" ]; then \
-		$(PYTHON) manage.py run $(ARGS); \
-	else \
-		$(PYTHON) manage.py run \
-			$(if $(HOST),--host $(HOST)) \
-			$(if $(PORT),--port $(PORT)) \
-			$(if $(RELOAD),--reload); \
-	fi
-
+	@$(PYTHON) manage.py run --port 8000 --reload --log-level debug
+ d
 # Wrapper to invoke manage.py with any args
 manage:
 	@$(PYTHON) manage.py $(ARGS)
