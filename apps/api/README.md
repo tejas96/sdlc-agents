@@ -23,7 +23,7 @@ poetry run python manage.py run --reload
 
 ## Documentation
 
-- **API Docs**: http://localhost:8000/docs (when running)
+- **API Docs**: http://localhost:8001/docs (when running)
 - **Main Project**: See [../README.md](../../README.md) for complete documentation
 - **Architecture**: FastAPI + SQLModel + PostgreSQL + Redis
 

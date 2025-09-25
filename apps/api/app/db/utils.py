@@ -1,9 +1,7 @@
 """Database utility functions."""
 
 import asyncio
-from typing import Any
 
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 
 from app.core.database import get_async_session

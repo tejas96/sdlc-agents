@@ -64,7 +64,7 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = Field(default="DEBUG", description="Logging level")
 
     # Server Configuration
-    PORT: int = Field(default=8000, description="Server port")
+    PORT: int = Field(default=8001, description="Server port")
 
     # Security Configuration
     MAX_REQUEST_SIZE: int = Field(default=10 * 1024 * 1024, description="Maximum request size in bytes")  # 10MB
@@ -76,14 +76,45 @@ class Settings(BaseSettings):
     # SDLC Agents Configuration
     AGENTS_DIR: str | None = Field(default=None, description="Root directory for per-session agent workspaces")
     PROJECTS_DIR: str | None = Field(default=None, description="Root directory for project repositories")
-    
+
     # External Service Configuration
     GITHUB_CLIENT_ID: str | None = Field(default=None, description="GitHub OAuth client ID")
     GITHUB_CLIENT_SECRET: str | None = Field(default=None, description="GitHub OAuth client secret")
-    SLACK_BOT_TOKEN: str | None = Field(default=None, description="Slack bot token")
+    JIRA_CLIENT_ID: str | None = Field(default=None, description="Jira OAuth client ID")
+    JIRA_CLIENT_SECRET: str | None = Field(default=None, description="Jira OAuth client secret")
     JIRA_API_URL: str | None = Field(default=None, description="Jira API base URL")
     JIRA_USERNAME: str | None = Field(default=None, description="Jira username")
     JIRA_API_TOKEN: str | None = Field(default=None, description="Jira API token")
+    SLACK_CLIENT_ID: str | None = Field(default=None, description="Slack OAuth client ID")
+    SLACK_CLIENT_SECRET: str | None = Field(default=None, description="Slack OAuth client secret")
+    SLACK_BOT_TOKEN: str | None = Field(default=None, description="Slack bot token")
+    CONFLUENCE_API_URL: str | None = Field(default=None, description="Confluence API base URL")
+    SENTRY_DSN: str | None = Field(default=None, description="Sentry DSN for error tracking")
+
+    # AI/LLM Configuration
+    ANTHROPIC_API_KEY: str | None = Field(default=None, description="Anthropic Claude API key")
+    OPENAI_API_KEY: str | None = Field(default=None, description="OpenAI API key")
+
+    # Redis Configuration
+    REDIS_URL: str | None = Field(default=None, description="Redis connection URL")
+
+    # Celery Configuration
+    CELERY_BROKER_URL: str | None = Field(default=None, description="Celery broker URL")
+    CELERY_RESULT_BACKEND: str | None = Field(default=None, description="Celery result backend URL")
+
+    # Monitoring Configuration
+    PROMETHEUS_ENABLED: bool = Field(default=True, description="Enable Prometheus metrics")
+    SENTRY_ENABLED: bool = Field(default=False, description="Enable Sentry error tracking")
+
+    # Security Configuration
+    ENCRYPTION_KEY: str | None = Field(default=None, description="Key for encrypting sensitive data")
+    RATE_LIMIT_ENABLED: bool = Field(default=True, description="Enable rate limiting")
+    AUDIT_LOG_RETENTION_DAYS: int = Field(default=90, description="Audit log retention period")
+
+    # Performance Configuration
+    CACHE_TTL_SECONDS: int = Field(default=900, description="Default cache TTL in seconds")
+    MAX_CONCURRENT_AGENTS: int = Field(default=10, description="Maximum concurrent agent executions")
+    AGENT_TIMEOUT_MINUTES: int = Field(default=30, description="Agent execution timeout")
 
     model_config = SettingsConfigDict(
         env_file=str(Paths.API_DIR / ".env"),  # Look for .env in API directory

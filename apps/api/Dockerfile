@@ -8,13 +8,21 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
-# Install system dependencies
+# Install Node.js, npm, make, and the Claude Code CLI
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends curl make git && \
+    apt-get install -y --no-install-recommends nodejs npm curl make git && \
+    npm install -g @anthropic-ai/claude-code && \
     rm -rf /var/lib/apt/lists/*
 
 # Install Poetry
 RUN pip install poetry==2.1.3
+
+# Install uv as appuser
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+COPY --from=docker.io/astral/uv:latest /uv /uvx /bin/
+
+# Add appuser's bin to PATH
+ENV PATH="/home/appuser/.local/bin:$PATH"
 
 # Configure Poetry: Don't create virtual environment, install dependencies to system python
 ENV POETRY_CACHE_DIR=/tmp/poetry_cache
@@ -43,5 +51,6 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:${PORT:-8000}/health || exit 1
 
-# Default command
-CMD ["python", "manage.py", "run", "--host", "0.0.0.0", "--port", "8000"]
+# Set the entrypoint and command to use deployment Makefile
+ENTRYPOINT ["make", "-s", "-f", "deployment/Makefile"]
+CMD ["run-prod-server"]
