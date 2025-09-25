@@ -1,240 +1,269 @@
 'use client';
 
-import React from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
 import {
-  HomeIcon,
-  CpuChipIcon,
-  DocumentTextIcon,
-  Cog8ToothIcon,
-  FolderIcon,
-  ChartBarIcon,
-  UsersIcon,
-  Cog6ToothIcon,
-} from '@heroicons/react/24/outline';
+  House,
+  Code,
+  Package,
+  ShieldCheck,
+  BookOpen,
+  Question,
+  Gear,
+  CaretRight,
+  CaretLeft,
+  SignOut,
+  type IconProps,
+} from '@phosphor-icons/react';
+
+import { Avatar } from '@/components/ui/avatar';
 import {
-  HomeIcon as HomeIconSolid,
-  CpuChipIcon as CpuChipIconSolid,
-  DocumentTextIcon as DocumentTextIconSolid,
-  Cog8ToothIcon as Cog8ToothIconSolid,
-  FolderIcon as FolderIconSolid,
-  ChartBarIcon as ChartBarIconSolid,
-  UsersIcon as UsersIconSolid,
-  Cog6ToothIcon as Cog6ToothIconSolid,
-} from '@heroicons/react/24/solid';
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+
+import { usePathname, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 
-interface NavItem {
-  name: string;
+import { LogoShort } from '@/components/icons/Logo';
+import { useUser } from '@/hooks/useUser';
+import { useOAuth } from '@/hooks/useOAuth';
+import { useProject } from '@/hooks/useProject';
+import { useHeader } from '@/hooks/useHeader';
+
+interface NavigationItem {
+  title: string;
   href: string;
-  icon: React.ComponentType<{ className?: string }>;
-  iconSolid: React.ComponentType<{ className?: string }>;
-  description?: string;
-  badge?: string | number;
+  icon: React.ComponentType<IconProps>;
 }
 
-const navigationItems: NavItem[] = [
+const navigationItems: NavigationItem[] = [
   {
-    name: 'Dashboard',
-    href: '/',
-    icon: HomeIcon,
-    iconSolid: HomeIconSolid,
-    description: 'Overview and metrics',
+    title: 'Dashboard',
+    href: '/dashboard',
+    icon: House,
   },
   {
-    name: 'AI Agents',
-    href: '/agents',
-    icon: CpuChipIcon,
-    iconSolid: CpuChipIconSolid,
-    description: 'Manage AI agents',
-    badge: 8,
+    title: 'Development',
+    href: '/development',
+    icon: Code,
   },
   {
-    name: 'Workflows',
-    href: '/workflows',
-    icon: Cog8ToothIcon,
-    iconSolid: Cog8ToothIconSolid,
-    description: 'Automation workflows',
+    title: 'Product Management',
+    href: '/product-management',
+    icon: Package,
   },
   {
-    name: 'Integrations',
-    href: '/integrations',
-    icon: DocumentTextIcon,
-    iconSolid: DocumentTextIconSolid,
-    description: 'External services',
+    title: 'Quality Assurance',
+    href: '/quality-assurance',
+    icon: ShieldCheck,
   },
   {
-    name: 'Projects',
-    href: '/projects',
-    icon: FolderIcon,
-    iconSolid: FolderIconSolid,
-    description: 'Active projects',
-  },
-  {
-    name: 'Analytics',
-    href: '/analytics',
-    icon: ChartBarIcon,
-    iconSolid: ChartBarIconSolid,
-    description: 'Performance insights',
-  },
-  {
-    name: 'Team',
-    href: '/team',
-    icon: UsersIcon,
-    iconSolid: UsersIconSolid,
-    description: 'Team management',
-  },
-  {
-    name: 'Settings',
-    href: '/settings',
-    icon: Cog6ToothIcon,
-    iconSolid: Cog6ToothIconSolid,
-    description: 'System settings',
+    title: 'Prompt Library',
+    href: '/prompt-library',
+    icon: BookOpen,
   },
 ];
 
-export interface SidebarProps {
-  className?: string;
-  collapsed?: boolean;
-  onCollapse?: (collapsed: boolean) => void;
-}
-
-const Sidebar: React.FC<SidebarProps> = ({ 
-  className, 
-  collapsed = false, 
-  onCollapse 
-}) => {
+const Sidebar = () => {
   const pathname = usePathname();
+  const router = useRouter();
+  const { name, resetUser } = useUser();
+  const { resetConnections } = useOAuth();
+  const { resetProject } = useProject();
+  const { isCollapsed, setIsCollapsed, resetAll } = useHeader();
 
-  const isActive = (href: string) => {
-    if (href === '/') {
-      return pathname === '/';
-    }
-    return pathname.startsWith(href);
+  const handleLogout = () => {
+    resetUser();
+    resetConnections();
+    resetProject();
+    resetAll();
+    router.push('/login');
+  };
+
+  const toggleSidebar = () => {
+    setIsCollapsed(!isCollapsed);
   };
 
   return (
-    <aside className={cn(
-      'glass border-r border-glass-border backdrop-blur-md transition-all duration-300 ease-in-out',
-      collapsed ? 'w-16' : 'w-72',
-      'sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto',
-      className
-    )}>
-      <div className="p-4">
-        {/* Collapse Toggle */}
-        <div className="flex justify-end mb-6">
-          <button
-            onClick={() => onCollapse?.(!collapsed)}
-            className="p-2 rounded-lg glass-hover transition-all duration-200"
-          >
-            <svg
-              className={cn(
-                'w-4 h-4 transition-transform duration-200',
-                collapsed ? 'rotate-180' : ''
-              )}
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M11 19l-7-7 7-7m8 14l-7-7 7-7"
-              />
-            </svg>
-          </button>
-        </div>
+    <div
+      className={cn(
+        'relative flex h-full flex-col text-white transition-all duration-300 ease-in-out',
+        isCollapsed ? 'w-16' : 'w-64'
+      )}
+      style={{
+        background: 'linear-gradient(180deg, #070220 -15.43%, #160A53 100%)',
+      }}
+    >
+      {/* Toggle Button */}
+      <button
+        onClick={toggleSidebar}
+        className={cn(
+          'absolute top-14 -right-2 z-10 flex h-6 w-6 items-center justify-center rounded-full border-2 border-[#342487] bg-[#150a4f] text-white shadow-lg transition-all duration-200',
+          'focus-visible:ring-2 focus-visible:outline-none'
+        )}
+        aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+      >
+        {isCollapsed ? (
+          <CaretRight size={12} weight='bold' />
+        ) : (
+          <CaretLeft size={12} weight='bold' />
+        )}
+      </button>
 
-        {/* Navigation */}
-        <nav className="space-y-2">
-          {navigationItems.map((item) => {
-            const active = isActive(item.href);
-            const Icon = active ? item.iconSolid : item.icon;
+      <div
+        className={cn(
+          'mb-6 flex items-center gap-2',
+          isCollapsed ? 'justify-center px-3 py-6' : 'p-6'
+        )}
+      >
+        <LogoShort className='h-8 w-8 flex-shrink-0' />
+        {!isCollapsed && <span className='text-2xl font-bold'>OptimaAI</span>}
+      </div>
+
+      <nav className={cn('flex-1', isCollapsed ? 'px-2' : 'px-4')}>
+        <ul className='space-y-2'>
+          {navigationItems.map(item => {
+            const isActive =
+              pathname === item.href || pathname.startsWith(item.href + '/');
+            const Icon = item.icon;
 
             return (
-              <Link
-                key={item.name}
-                href={item.href}
-                className={cn(
-                  'flex items-center px-3 py-3 rounded-lg text-sm font-medium transition-all duration-200 relative group',
-                  'hover:bg-primary/10 hover:text-primary hover:translate-x-1',
-                  active && 'bg-gradient-to-r from-primary/20 to-secondary/10 text-primary border border-primary/20',
-                  !active && 'text-muted-foreground hover:text-foreground',
-                  collapsed && 'justify-center'
-                )}
-              >
-                {/* Active indicator */}
-                {active && (
-                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-primary to-secondary rounded-r-full" />
-                )}
-
-                {/* Icon */}
-                <Icon className={cn(
-                  'w-5 h-5 flex-shrink-0',
-                  !collapsed && 'mr-3'
-                )} />
-
-                {/* Content */}
-                {!collapsed && (
-                  <>
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between">
-                        <span>{item.name}</span>
-                        {item.badge && (
-                          <span className="ml-2 px-2 py-0.5 text-xs font-medium bg-primary/20 text-primary rounded-full">
-                            {item.badge}
-                          </span>
-                        )}
-                      </div>
-                      {item.description && (
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          {item.description}
-                        </p>
-                      )}
-                    </div>
-                  </>
-                )}
-
-                {/* Tooltip for collapsed state */}
-                {collapsed && (
-                  <div className="absolute left-full ml-2 px-3 py-2 bg-background border border-border rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 whitespace-nowrap">
-                    <div className="text-sm font-medium">{item.name}</div>
-                    {item.description && (
-                      <div className="text-xs text-muted-foreground">
-                        {item.description}
-                      </div>
-                    )}
-                    {item.badge && (
-                      <div className="mt-1">
-                        <span className="px-2 py-0.5 text-xs font-medium bg-primary/20 text-primary rounded-full">
-                          {item.badge}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </Link>
+              <li key={item.href}>
+                <Link
+                  href={item.href}
+                  className={cn(
+                    'flex items-center gap-3 rounded-lg text-sm font-medium transition-all duration-200',
+                    'hover:bg-white/10',
+                    'focus-visible:ring-2 focus-visible:ring-purple-400 focus-visible:outline-none',
+                    isCollapsed ? 'justify-center px-3 py-3' : 'px-3 py-3'
+                  )}
+                  style={
+                    isActive
+                      ? {
+                          background: '#2A1E65',
+                          color: 'white',
+                        }
+                      : {}
+                  }
+                  tabIndex={0}
+                  aria-label={`Navigate to ${item.title}`}
+                  title={isCollapsed ? item.title : undefined}
+                >
+                  <Icon size={24} weight='regular' className='flex-shrink-0' />
+                  {!isCollapsed && <span className='flex-1'>{item.title}</span>}
+                </Link>
+              </li>
             );
           })}
-        </nav>
+        </ul>
+      </nav>
 
-        {/* Footer */}
-        {!collapsed && (
-          <div className="mt-8 pt-6 border-t border-glass-border">
-            <div className="px-3 py-2">
-              <p className="text-xs text-muted-foreground">
-                SDLC Agent v1.0.0
-              </p>
-              <p className="text-xs text-muted-foreground">
-                © 2025 SDLC Team
-              </p>
-            </div>
-          </div>
-        )}
+      <div
+        className={cn('border-t border-slate-700', isCollapsed ? 'p-2' : 'p-4')}
+      >
+        <Link
+          href='/help'
+          className={cn(
+            'mb-4 flex items-center gap-3 rounded-lg text-sm text-slate-300 transition-colors',
+            'hover:bg-white/5 hover:text-white',
+            'focus-visible:ring-2 focus-visible:ring-purple-400 focus-visible:outline-none',
+            isCollapsed ? 'justify-center px-3 py-2' : 'px-3 py-2'
+          )}
+          style={
+            pathname === '/help'
+              ? {
+                  background: '#2A1E65',
+                  color: 'white',
+                }
+              : {}
+          }
+          title={isCollapsed ? 'Help & Support' : undefined}
+        >
+          <Question size={24} weight='regular' className='flex-shrink-0' />
+          {!isCollapsed && <span>Help & Support</span>}
+        </Link>
+
+        {/* Settings */}
+        <Link
+          href='/settings'
+          className={cn(
+            'mb-4 flex items-center gap-3 rounded-lg text-sm text-slate-300 transition-colors',
+            'hover:bg-white/5 hover:text-white',
+            'focus-visible:ring-2 focus-visible:ring-purple-400 focus-visible:outline-none',
+            isCollapsed ? 'justify-center px-3 py-2' : 'px-3 py-2'
+          )}
+          style={
+            pathname === '/settings'
+              ? {
+                  background: '#2A1E65',
+                  color: 'white',
+                }
+              : {}
+          }
+          title={isCollapsed ? 'Settings' : undefined}
+        >
+          <Gear size={24} weight='regular' className='flex-shrink-0' />
+          {!isCollapsed && <span>Settings</span>}
+        </Link>
+
+        {/* User Profile */}
+        <div
+          className={cn(
+            'flex items-center gap-3 rounded-lg',
+            isCollapsed ? 'justify-center px-2 py-2' : 'px-3 py-2'
+          )}
+        >
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                className={cn(
+                  'flex items-center gap-3 rounded-lg transition-all duration-200',
+                  'hover:bg-white/5',
+                  'focus-visible:ring-2 focus-visible:ring-purple-400 focus-visible:outline-none',
+                  isCollapsed ? 'p-0' : 'w-full'
+                )}
+                aria-label='User menu'
+              >
+                <Avatar>
+                  {name
+                    ?.split(' ')
+                    .map(word => word.charAt(0).toUpperCase())
+                    .join('') ?? 'UA'}
+                </Avatar>
+                {!isCollapsed && (
+                  <>
+                    <div className='flex-1 text-left'>
+                      <p className='text-sm font-medium text-white'>
+                        {name ?? 'user'}
+                      </p>
+                    </div>
+                    <CaretRight
+                      size={20}
+                      weight='regular'
+                      className='text-slate-400'
+                    />
+                  </>
+                )}
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align={isCollapsed ? 'center' : 'end'}
+              className='w-48'
+            >
+              <DropdownMenuItem
+                onClick={handleLogout}
+                className='flex cursor-pointer items-center gap-2'
+              >
+                <SignOut size={16} weight='regular' />
+                <span>Logout</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
-    </aside>
+    </div>
   );
 };
 

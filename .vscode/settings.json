@@ -2,7 +2,7 @@
     "python.defaultInterpreterPath": "/Users/tejaspatil/miniconda3/envs/sdlc-agents/bin/python",
     "python.condaPath": "/Users/tejaspatil/miniconda3/bin/conda",
 
-    "python.languageServer": "Pylance",
+    "python.languageServer": "None",
 
     // Formatting with Black
     "python.formatting.provider": "black",
@@ -10,13 +10,13 @@
       "--config",
       "${workspaceFolder}/apps/api/pyproject.toml"
     ],
-    "[python]": {
-      "editor.defaultFormatter": "ms-python.black-formatter",
-      "editor.formatOnSave": true,
-      "editor.codeActionsOnSave": {
-        "source.organizeImports": "explicit",
-        "source.fixAll.ruff": "explicit"
-      }
+   "[python]": {
+        "editor.defaultFormatter": "ms-python.black-formatter",
+        "editor.formatOnSave": true,
+        "editor.codeActionsOnSave": {
+            "source.organizeImports": "never",
+            "source.fixAll.ruff": "always"
+        }
     },
 
     // Ruff (uses pyproject.toml)

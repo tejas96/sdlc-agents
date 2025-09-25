@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "concurrently \"pnpm dev:api\" \"pnpm dev:web\"",
     "dev:api": "cd apps/api && make run HOST=0.0.0.0 PORT=8001 RELOAD=true",
-    "dev:web": "cd apps/web && pnpm dev",
+    "dev:web": "cd apps/web && sh -c 'nvm use || true' && pnpm dev",
     "build": "pnpm build:web",
     "build:api": "cd apps/api && make build",
     "build:web": "cd apps/web && pnpm build",
@@ -27,24 +27,27 @@
     "docker:logs:web": "docker-compose logs -f web",
     "setup": "echo 'SDLC Agents setup complete. Run pnpm dev to start both API and Web servers.'"
   },
+   "devDependencies": {
+    "concurrently": "^8.2.0",
+    "turbo": "^1.10.0"
+  },
+  "packageManager": "pnpm@8.6.0",
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=8.0.0",
+    "python": ">=3.11.0"
+  },
   "keywords": [
     "fastapi",
-    "sdlc",
-    "agents",
-    "software-development",
-    "lifecycle-management",
-    "automation",
+    "nextjs",
+    "monorepo",
+    "claude",
     "ai",
+    "streaming",
+    "typescript",
     "python",
     "poetry"
   ],
   "author": "SDLC Agents Team",
-  "license": "MIT",
-  "engines": {
-    "node": ">=18.0.0",
-    "python": ">=3.11.0"
-  },
-  "devDependencies": {
-    "concurrently": "^9.2.1"
-  }
+  "license": "MIT"
 }

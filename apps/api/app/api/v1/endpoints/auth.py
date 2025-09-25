@@ -4,14 +4,15 @@ from datetime import timedelta
 from typing import Any
 
 import jwt
+from fastapi import APIRouter, HTTPException, status
+from fastapi.params import Form
+
 from app.api.deps import CurrentUser, DatabaseSession
 from app.core.auth import create_access_token, create_refresh_token
 from app.core.config import get_settings
 from app.crud.user import user_crud
 from app.models.user import UserCreate
 from app.schemas.auth import Token, UserLogin, UserResponse
-from fastapi import APIRouter, HTTPException, status
-from fastapi.params import Form
 
 router = APIRouter()
 
