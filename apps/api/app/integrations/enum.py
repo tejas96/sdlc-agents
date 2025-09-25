@@ -23,6 +23,9 @@ class IntegrationProvider(str, Enum):
     NEW_RELIC = "newrelic"
     GRAFANA = "grafana"
     CLOUDWATCH = "cloudwatch"
+    # Deployment
+    HEROKU = "heroku"
+    AWS = "aws"
 
 
 class IntegrationFeature(str, Enum):
@@ -46,6 +49,7 @@ class IntegrationFeature(str, Enum):
     STORAGE = "storage"
     ANALYTICS = "analytics"
     SECURITY = "security"
+    DEPLOYMENT = "deployment"
     OTHER = "other"
 
 
