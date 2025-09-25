@@ -9,6 +9,7 @@ from app.models.integration import IntegrationStatus, IntegrationType
 
 class IntegrationResponse(BaseModel):
     """Integration response schema."""
+
     id: int
     name: str
     slug: str
@@ -40,8 +41,22 @@ class IntegrationResponse(BaseModel):
 
 class IntegrationListResponse(BaseModel):
     """Integration list response schema."""
+
     integrations: list[IntegrationResponse]
     total: int
     page: int
     size: int
     pages: int
+
+
+class IntegrationClientCredentials(BaseModel):
+    """Integration client credentials schema."""
+
+    client_id: str
+    client_secret: str
+    redirect_uri: str
+    scopes: list[str]
+    token_url: str
+    auth_url: str
+    api_url: str
+    api_version: str

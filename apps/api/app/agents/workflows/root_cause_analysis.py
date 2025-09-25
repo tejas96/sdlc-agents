@@ -13,12 +13,7 @@ class RootCauseAnalysisWorkflow(AgentWorkflow):
     identifier = AgentIdentifier.ROOT_CAUSE_ANALYSIS
     module = "quality_assurance"
 
-    async def prepare(
-        self,
-        *,
-        session: Any,
-        messages: list[dict[str, Any]]
-    ) -> AsyncIterator[dict[str, Any]]:
+    async def prepare(self, *, session: Any, messages: list[dict[str, Any]]) -> AsyncIterator[dict[str, Any]]:
         """Prepare workspace and collect incident data for analysis."""
         yield self._emit_step_update(WorkflowStep.PREPARE, "Initializing root cause analysis workspace")
 
@@ -34,17 +29,10 @@ class RootCauseAnalysisWorkflow(AgentWorkflow):
         incident_analysis = await self._analyze_incident_context(incident_data)
 
         yield self._emit_step_update(
-            WorkflowStep.PREPARE,
-            "Incident data collected and analyzed",
-            {"incident": incident_analysis}
+            WorkflowStep.PREPARE, "Incident data collected and analyzed", {"incident": incident_analysis}
         )
 
-    async def run(
-        self,
-        *,
-        session: Any,
-        messages: list[dict[str, Any]]
-    ) -> AsyncIterator[dict[str, Any]]:
+    async def run(self, *, session: Any, messages: list[dict[str, Any]]) -> AsyncIterator[dict[str, Any]]:
         """Execute root cause analysis using Claude."""
         yield self._emit_step_update(WorkflowStep.EXECUTE, "Performing root cause analysis")
 
@@ -52,19 +40,16 @@ class RootCauseAnalysisWorkflow(AgentWorkflow):
         system_prompt = await self._prepare_system_prompt(
             workspace_dir=self.workspace_dir,
             analysis_type="root_cause",
-            investigation_methods=["timeline_analysis", "log_correlation", "dependency_mapping", "pattern_recognition"]
+            investigation_methods=["timeline_analysis", "log_correlation", "dependency_mapping", "pattern_recognition"],
         )
 
         user_prompt = await self._prepare_user_prompt(
             incident_data=messages,
-            analysis_focus=["error_patterns", "system_dependencies", "timing_correlations", "configuration_changes"]
+            analysis_focus=["error_patterns", "system_dependencies", "timing_correlations", "configuration_changes"],
         )
 
         # Prepare messages for Claude
-        claude_messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt}
-        ]
+        claude_messages = [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}]
 
         yield self._emit_progress_update(60, "Analyzing incident data with AI")
 
@@ -72,12 +57,7 @@ class RootCauseAnalysisWorkflow(AgentWorkflow):
         async for chunk in self._stream_claude_response(claude_messages):
             yield chunk
 
-    async def finalize(
-        self,
-        *,
-        session: Any,
-        messages: list[dict[str, Any]]
-    ) -> AsyncIterator[dict[str, Any]]:
+    async def finalize(self, *, session: Any, messages: list[dict[str, Any]]) -> AsyncIterator[dict[str, Any]]:
         """Generate root cause analysis report and remediation plan."""
         yield self._emit_step_update(WorkflowStep.FINALIZE, "Generating analysis report and remediation plan")
 
@@ -98,13 +78,13 @@ class RootCauseAnalysisWorkflow(AgentWorkflow):
             {
                 "analysis_files": analysis_files,
                 "remediation_plan": remediation_plan,
-                "postmortem_template": postmortem_template
-            }
+                "postmortem_template": postmortem_template,
+            },
         )
 
     def _extract_incident_data_from_messages(self, messages: list[dict[str, Any]]) -> dict[str, Any]:
         """Extract incident data from messages (logs, metrics, alerts, etc.)."""
-        incident_data = {
+        incident_data: dict[str, Any] = {
             "incident_id": None,
             "start_time": None,
             "end_time": None,
@@ -116,21 +96,23 @@ class RootCauseAnalysisWorkflow(AgentWorkflow):
             "deployments": [],
             "configuration_changes": [],
             "user_reports": [],
-            "data_sources": []
+            "data_sources": [],
         }
 
         for message in messages:
             msg_type = message.get("type", "")
 
             if msg_type == "incident_report":
-                incident_data.update({
-                    "incident_id": message.get("incident_id"),
-                    "start_time": message.get("start_time"),
-                    "end_time": message.get("end_time"),
-                    "severity": message.get("severity", "unknown"),
-                    "description": message.get("description"),
-                    "affected_services": message.get("affected_services", [])
-                })
+                incident_data.update(
+                    {
+                        "incident_id": message.get("incident_id"),
+                        "start_time": message.get("start_time"),
+                        "end_time": message.get("end_time"),
+                        "severity": message.get("severity", "unknown"),
+                        "description": message.get("description"),
+                        "affected_services": message.get("affected_services", []),
+                    }
+                )
                 incident_data["data_sources"].append("incident_report")
 
             elif msg_type == "error_logs":
@@ -182,7 +164,7 @@ class RootCauseAnalysisWorkflow(AgentWorkflow):
             "affected_services_count": len(incident_data.get("affected_services", [])),
             "data_sources_available": len(set(incident_data.get("data_sources", []))),
             "potential_causes": potential_causes,
-            "analysis_confidence": self._calculate_analysis_confidence(incident_data)
+            "analysis_confidence": self._calculate_analysis_confidence(incident_data),
         }
 
     def _calculate_impact_score(self, incident_data: dict[str, Any]) -> int:
@@ -190,13 +172,7 @@ class RootCauseAnalysisWorkflow(AgentWorkflow):
         score = 0
 
         # Severity weight
-        severity_weights = {
-            "critical": 40,
-            "high": 30,
-            "medium": 20,
-            "low": 10,
-            "unknown": 15
-        }
+        severity_weights = {"critical": 40, "high": 30, "medium": 20, "low": 10, "unknown": 15}
         score += severity_weights.get(incident_data.get("severity", "unknown"), 15)
 
         # Affected services weight
@@ -219,39 +195,47 @@ class RootCauseAnalysisWorkflow(AgentWorkflow):
 
         # Check for recent deployments
         if incident_data.get("deployments"):
-            causes.append({
-                "category": "deployment",
-                "description": "Recent deployment detected",
-                "confidence": 0.8,
-                "evidence": f"{len(incident_data['deployments'])} deployments"
-            })
+            causes.append(
+                {
+                    "category": "deployment",
+                    "description": "Recent deployment detected",
+                    "confidence": 0.8,
+                    "evidence": f"{len(incident_data['deployments'])} deployments",
+                }
+            )
 
         # Check for configuration changes
         if incident_data.get("configuration_changes"):
-            causes.append({
-                "category": "configuration",
-                "description": "Configuration changes detected",
-                "confidence": 0.7,
-                "evidence": f"{len(incident_data['configuration_changes'])} config changes"
-            })
+            causes.append(
+                {
+                    "category": "configuration",
+                    "description": "Configuration changes detected",
+                    "confidence": 0.7,
+                    "evidence": f"{len(incident_data['configuration_changes'])} config changes",
+                }
+            )
 
         # Check for high error volume
         if len(incident_data.get("error_logs", [])) > 10:
-            causes.append({
-                "category": "system_failure",
-                "description": "High error log volume",
-                "confidence": 0.6,
-                "evidence": f"{len(incident_data['error_logs'])} error entries"
-            })
+            causes.append(
+                {
+                    "category": "system_failure",
+                    "description": "High error log volume",
+                    "confidence": 0.6,
+                    "evidence": f"{len(incident_data['error_logs'])} error entries",
+                }
+            )
 
         # Check for multiple affected services
         if len(incident_data.get("affected_services", [])) > 1:
-            causes.append({
-                "category": "infrastructure",
-                "description": "Multiple services affected",
-                "confidence": 0.5,
-                "evidence": f"{len(incident_data['affected_services'])} services"
-            })
+            causes.append(
+                {
+                    "category": "infrastructure",
+                    "description": "Multiple services affected",
+                    "confidence": 0.5,
+                    "evidence": f"{len(incident_data['affected_services'])} services",
+                }
+            )
 
         return causes
 
@@ -264,10 +248,7 @@ class RootCauseAnalysisWorkflow(AgentWorkflow):
 
         # Boost confidence if we have key data sources
         key_sources = ["incident_report", "error_logs", "metrics"]
-        available_key_sources = sum(
-            1 for source in key_sources
-            if source in incident_data.get("data_sources", [])
-        )
+        available_key_sources = sum(1 for source in key_sources if source in incident_data.get("data_sources", []))
 
         confidence_boost = (available_key_sources / len(key_sources)) * 0.2
 
@@ -288,7 +269,9 @@ class RootCauseAnalysisWorkflow(AgentWorkflow):
 
         # Save timeline analysis
         timeline_path = analysis_dir / "incident_timeline.md"
-        timeline_path.write_text("# Incident Timeline\n\n## Key Events\n- Incident start\n- First alerts\n- Resolution\n")
+        timeline_path.write_text(
+            "# Incident Timeline\n\n## Key Events\n- Incident start\n- First alerts\n- Resolution\n"
+        )
         output_files.append(str(timeline_path))
 
         # Save evidence collection
@@ -304,25 +287,17 @@ class RootCauseAnalysisWorkflow(AgentWorkflow):
             "immediate_actions": [
                 "Rollback recent deployment if applicable",
                 "Scale affected services",
-                "Monitor error rates closely"
+                "Monitor error rates closely",
             ],
-            "short_term_fixes": [
-                "Implement additional monitoring",
-                "Add circuit breakers",
-                "Improve error handling"
-            ],
+            "short_term_fixes": ["Implement additional monitoring", "Add circuit breakers", "Improve error handling"],
             "long_term_improvements": [
                 "Enhanced testing procedures",
                 "Automated deployment validation",
-                "Improved observability"
+                "Improved observability",
             ],
             "priority": "high",
             "estimated_effort": "2-4 weeks",
-            "success_metrics": [
-                "Reduce MTTR by 50%",
-                "Prevent similar incidents",
-                "Improve monitoring coverage"
-            ]
+            "success_metrics": ["Reduce MTTR by 50%", "Prevent similar incidents", "Improve monitoring coverage"],
         }
 
     async def _create_postmortem_template(self) -> dict[str, Any]:
@@ -337,8 +312,8 @@ class RootCauseAnalysisWorkflow(AgentWorkflow):
                 "Response Evaluation",
                 "Remediation Actions",
                 "Prevention Measures",
-                "Lessons Learned"
+                "Lessons Learned",
             ],
             "status": "draft",
-            "review_required": True
+            "review_required": True,
         }
