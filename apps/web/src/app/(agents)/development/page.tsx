@@ -27,13 +27,13 @@ const DEVELOPMENT_TOOLS = [
     agentType: 'code_reviewer',
   },
   {
-    id: 'observability_debugging_agent',
-    heading: 'Observability & Debugging Agent',
+    id: 'root_cause_analysis_agent',
+    heading: 'Root Cause Analysis Agent',
     description:
       'Monitor logs, trace errors, and uncover root causes with AI-powered insights',
     icon: <ObservabilityAndDebuggingIcon className='h-8 w-8' />,
-    navigateTo: '/development/observability-debugging',
-    badgeStatus: 'COMING SOON' as const,
+    navigateTo: '/development/root-cause-analysis',
+    agentType: 'root_cause_analysis',
   },
 
   {

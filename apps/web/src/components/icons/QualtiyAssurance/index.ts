@@ -6,3 +6,4 @@ export { APITestingSuiteIcon } from './APITestingSuite';
 export { PerformanceTestingIcon } from './PerformanceTesting';
 export { E2ETestSuiteBuilderIcon } from './E2ETestSuiteBuilder';
 export { SyntheticDataGeneratorIcon } from './SyntheticDataGenerator';
+export { SettingsIcon } from './SettingsIcon';

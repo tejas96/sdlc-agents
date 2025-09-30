@@ -21,39 +21,29 @@ import {
 } from '@/components/shared/MultiSelectDropdown';
 import { useAtlassian } from '@/hooks/useAtlassian';
 import { atlassianApi } from '@/lib/api/api';
-import type { AtlassianProject, AtlassianIssue } from '@/types';
+import type {
+  AtlassianProject,
+  AtlassianIssue,
+  JiraTicketsModalProps,
+  EnhancedAtlassianIssue,
+} from '@/types';
 import { useUser } from '@/hooks/useUser';
 import { useProject } from '@/hooks/useProject';
 import { toast } from 'sonner';
-
-type DocumentType = 'prd' | 'supporting_doc';
-
-// Enhanced ticket with project information
-interface EnhancedAtlassianIssue extends AtlassianIssue {
-  projectKey: string;
-  projectName: string;
-}
-
-interface JiraTicketsModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onConfirm?: (
-    selectedTickets: EnhancedAtlassianIssue[],
-    ticketIds: string[]
-  ) => void;
-  type: DocumentType;
-}
 
 export function JiraTicketsModal({
   isOpen,
   onClose,
   onConfirm,
+  onConfirmSingle,
   type,
+  mode = 'multi',
 }: JiraTicketsModalProps) {
   const [selectedProjects, setSelectedProjects] = useState<string[]>([]);
   const [selectedTicketIds, setSelectedTicketIds] = useState<Set<string>>(
     new Set()
   );
+  const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
   const [ticketSearchQuery, setTicketSearchQuery] = useState('');
   const [fullyLoadedProjects, setFullyLoadedProjects] = useState<Set<string>>(
     new Set()
@@ -85,9 +75,15 @@ export function JiraTicketsModal({
       title: 'Select Jira PRD Tickets',
       description: 'First select projects, then choose specific tickets',
     },
-    supporting_doc: {
-      title: 'Select Jira Tickets',
-      description: 'First select projects, then choose specific tickets',
+    incident: {
+      title:
+        mode === 'single'
+          ? 'Select Jira Incident'
+          : 'Select Jira Incident Tickets',
+      description:
+        mode === 'single'
+          ? 'First select projects, then choose a specific incident'
+          : 'First select projects, then choose specific tickets',
     },
   };
 
@@ -352,40 +348,49 @@ export function JiraTicketsModal({
   useEffect(() => {
     if (!isOpen) return;
 
-    const currentData = type === 'prd' ? prdjira : docsjira;
-
-    // Always reset search
+    // Always reset search and selections
     setTicketSearchQuery('');
     setDebouncedSearchQuery('');
+    setSelectedTicketId(null);
 
-    // Restore ticket selections
-    const persistedTicketIds = new Set(
-      currentData.tickets.map(ticket => ticket.id)
-    );
-    setSelectedTicketIds(persistedTicketIds);
+    if (mode === 'multi') {
+      const currentData = type === 'prd' ? prdjira : docsjira;
 
-    // Handle persisted data
-    if (currentData.tickets.length > 0) {
-      const persistedProjectKeys = Array.from(
-        new Set(
-          currentData.tickets
-            .map(ticket => (ticket as EnhancedAtlassianIssue).projectKey)
-            .filter(Boolean)
-        )
+      // Restore ticket selections for multi-select mode
+      const persistedTicketIds = new Set(
+        currentData.tickets.map(ticket => ticket.id)
       );
+      setSelectedTicketIds(persistedTicketIds);
 
-      setSelectedProjects(persistedProjectKeys);
-      setFullyLoadedProjects(new Set(persistedProjectKeys));
+      // Handle persisted data
+      if (currentData.tickets.length > 0) {
+        const persistedProjectKeys = Array.from(
+          new Set(
+            currentData.tickets
+              .map(ticket => (ticket as EnhancedAtlassianIssue).projectKey)
+              .filter(Boolean)
+          )
+        );
+
+        setSelectedProjects(persistedProjectKeys);
+        setFullyLoadedProjects(new Set(persistedProjectKeys));
+      } else {
+        setSelectedProjects([]);
+        setFullyLoadedProjects(new Set());
+        setLoadingProjects(new Set());
+      }
     } else {
+      // For single select mode, start fresh
+      setSelectedTicketIds(new Set());
       setSelectedProjects([]);
       setFullyLoadedProjects(new Set());
       setLoadingProjects(new Set());
     }
-  }, [isOpen, prdjira, docsjira, type]);
+  }, [isOpen, prdjira, docsjira, type, mode]);
 
-  // Separate effect to handle cache updates for persisted tickets
+  // Separate effect to handle cache updates for persisted tickets (multi-select only)
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || mode !== 'multi') return;
 
     const currentData = type === 'prd' ? prdjira : docsjira;
 
@@ -408,6 +413,7 @@ export function JiraTicketsModal({
     prdjira,
     docsjira,
     type,
+    mode,
   ]);
 
   // Load projects when modal opens if needed
@@ -440,19 +446,30 @@ export function JiraTicketsModal({
 
   // Handle ticket selection
   const handleToggleTicket = (ticketId: string) => {
-    setSelectedTicketIds(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(ticketId)) {
-        newSet.delete(ticketId);
-      } else {
-        newSet.add(ticketId);
-      }
-      return newSet;
-    });
+    if (mode === 'single') {
+      setSelectedTicketId(ticketId);
+    } else {
+      setSelectedTicketIds(prev => {
+        const newSet = new Set(prev);
+        if (newSet.has(ticketId)) {
+          newSet.delete(ticketId);
+        } else {
+          newSet.add(ticketId);
+        }
+        return newSet;
+      });
+    }
   };
 
   const handleConfirm = () => {
-    if (onConfirm) {
+    if (mode === 'single' && onConfirmSingle && selectedTicketId) {
+      const selectedTicket = (
+        cachedJiraTickets as EnhancedAtlassianIssue[]
+      ).find(ticket => ticket.id === selectedTicketId);
+      if (selectedTicket) {
+        onConfirmSingle(selectedTicket);
+      }
+    } else if (mode === 'multi' && onConfirm) {
       const selectedTickets = (
         cachedJiraTickets as EnhancedAtlassianIssue[]
       ).filter(ticket => selectedTicketIds.has(ticket.id));
@@ -466,12 +483,15 @@ export function JiraTicketsModal({
     setTicketSearchQuery('');
     setDebouncedSearchQuery('');
     setSelectedProjects([]);
+    setSelectedTicketIds(new Set());
+    setSelectedTicketId(null);
     setFullyLoadedProjects(new Set());
     setLoadingProjects(new Set());
     onClose();
   };
 
-  const selectedTicketCount = selectedTicketIds.size;
+  const selectedTicketCount =
+    mode === 'single' ? (selectedTicketId ? 1 : 0) : selectedTicketIds.size;
   const hasSelectedProjects = selectedProjects.length > 0;
 
   // Check if any selected projects are still being loaded or unloaded
@@ -494,10 +514,10 @@ export function JiraTicketsModal({
             <div>
               <DialogTitle className='flex items-center gap-2'>
                 <JiraIcon className='h-5 w-5' />
-                {content[type].title}
+                {content[type]?.title}
               </DialogTitle>
               <p className='text-muted-foreground mt-1 text-sm'>
-                {content[type].description}
+                {content[type]?.description}
               </p>
             </div>
             <Button
@@ -627,15 +647,27 @@ export function JiraTicketsModal({
                           key={ticket.id}
                           className={cn(
                             'hover:bg-accent flex cursor-pointer items-center gap-4 border-b px-4 py-3 text-sm transition-colors',
-                            selectedTicketIds.has(ticket.id) && 'bg-accent'
+                            mode === 'single'
+                              ? selectedTicketId === ticket.id && 'bg-accent'
+                              : selectedTicketIds.has(ticket.id) && 'bg-accent'
                           )}
                           onClick={() => handleToggleTicket(ticket.id)}
                         >
-                          <Checkbox
-                            checked={selectedTicketIds.has(ticket.id)}
-                            onChange={() => {}} // Handled by parent click
-                            className='pointer-events-none'
-                          />
+                          {mode === 'single' ? (
+                            <input
+                              type='radio'
+                              name='ticket-selection'
+                              checked={selectedTicketId === ticket.id}
+                              onChange={() => {}} // Handled by parent click
+                              className='text-primary focus:ring-primary pointer-events-none h-4 w-4'
+                            />
+                          ) : (
+                            <Checkbox
+                              checked={selectedTicketIds.has(ticket.id)}
+                              onChange={() => {}} // Handled by parent click
+                              className='pointer-events-none'
+                            />
+                          )}
                           <div className='min-w-0 flex-1'>
                             <div className='mb-1 flex items-center gap-2'>
                               <p className='font-semibold text-gray-700'>
@@ -693,7 +725,10 @@ export function JiraTicketsModal({
             className='bg-[#11054c] text-white hover:bg-[#1a0a6b]'
           >
             Confirm{' '}
-            {selectedTicketCount > 0 && `(${selectedTicketCount} tickets)`}
+            {selectedTicketCount > 0 &&
+              (mode === 'single'
+                ? '(1 ticket)'
+                : `(${selectedTicketCount} tickets)`)}
           </Button>
         </DialogFooter>
       </DialogContent>

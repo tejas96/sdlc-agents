@@ -35,3 +35,45 @@ export interface RequirementItem {
     timestamp: string;
   }>;
 }
+
+export interface ApiSpec {
+  id: string;
+  name: string;
+  type: 'file' | 'url';
+  source: string; // File content or URL
+  uploadedAt: string;
+  size?: number;
+  version?: string;
+  specType?: string; // e.g., 'OAS 3.1', 'Swagger 2.0'
+  description?: string;
+  path?: string; // e.g., '/api/v1/openapi.json'
+}
+
+export interface ApiSpecState {
+  specs: ApiSpec[];
+  selectedSpecs: string[];
+}
+
+export interface ApiTestCase {
+  id: string;
+  name: string;
+  type: 'file' | 'url';
+  source: string; // File content or URL
+  uploadedAt: string;
+  size?: number;
+}
+
+export interface TestCasesState {
+  testCases: ApiTestCase[];
+  selectedTestCases: string[];
+}
+
+export interface ApiFramework {
+  id: string;
+  name: string;
+  enabled: boolean;
+}
+
+export interface ApiFrameworkState {
+  frameworks: ApiFramework[];
+}

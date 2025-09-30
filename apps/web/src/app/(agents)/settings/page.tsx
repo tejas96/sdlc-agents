@@ -11,10 +11,23 @@ import {
   SlackIcon,
   ServiceNowIcon,
   GoogleDriveIcon,
+  FigmaIcon,
+  PagerDutyIcon,
+  SentryIcon,
+  NewRelicIcon,
+  DataDogIcon,
+  GrafanaIcon,
+  CloudWatchIcon,
 } from '@/components/icons';
 import { ServiceTile } from '@/components/features/settings/ServiceTile';
 import { GitHubModal } from '@/components/shared/GitHubModal';
 import { FigmaModal } from '@/components/shared/FigmaModal';
+import { PagerDutyModal } from '@/components/shared/PagerDutyModal';
+import { SentryModal } from '@/components/shared/SentryModal';
+import { NewRelicModal } from '@/components/shared/NewRelicModal';
+import { DataDogModal } from '@/components/shared/DataDogModal';
+import { GrafanaModal } from '@/components/shared/GrafanaModal';
+import { CloudWatchModal } from '@/components/shared/CloudWatchModal';
 import { useOAuth } from '@/hooks/useOAuth';
 import { useUser } from '@/hooks/useUser';
 import { integrationApi } from '@/lib/api/api';
@@ -50,14 +63,64 @@ const SERVICES = [
     disconnectedDescription: 'Enter API token',
     type: 'token',
   },
-  // {
-  //   id: 'figma',
-  //   title: 'Figma',
-  //   icon: FigmaIcon,
-  //   connectedDescription: 'Connected',
-  //   disconnectedDescription: 'Enter API token',
-  //   type: 'token',
-  // },
+  {
+    id: 'figma',
+    title: 'Figma',
+    icon: FigmaIcon,
+    connectedDescription: 'Coming Soon',
+    disconnectedDescription: 'Coming Soon',
+    type: 'token',
+    comingSoon: true,
+  },
+  {
+    id: 'pagerduty',
+    title: 'PagerDuty',
+    icon: PagerDutyIcon,
+    connectedDescription: 'Connected',
+    disconnectedDescription: 'Enter API token',
+    type: 'token',
+  },
+  {
+    id: 'sentry',
+    title: 'Sentry',
+    icon: SentryIcon,
+    connectedDescription: 'Connected',
+    disconnectedDescription: 'Enter API token',
+    type: 'token',
+  },
+  {
+    id: 'newrelic',
+    title: 'New Relic',
+    icon: NewRelicIcon,
+    connectedDescription: 'Connected',
+    disconnectedDescription: 'Enter token',
+    type: 'token',
+  },
+  {
+    id: 'datadog',
+    title: 'DataDog',
+    icon: DataDogIcon,
+    connectedDescription: 'Connected',
+    disconnectedDescription: 'Enter API token',
+    type: 'token',
+  },
+  {
+    id: 'cloudwatch',
+    title: 'CloudWatch',
+    icon: CloudWatchIcon,
+    connectedDescription: 'Connected',
+    disconnectedDescription: 'Enter AWS credentials',
+    type: 'token',
+  },
+  {
+    id: 'grafana',
+    title: 'Grafana',
+    icon: GrafanaIcon,
+    connectedDescription: 'Coming Soon',
+    disconnectedDescription: 'Coming Soon',
+    type: 'token',
+    comingSoon: true,
+  },
   {
     id: 'gitlab',
     title: 'GitLab',
@@ -120,14 +183,32 @@ export default function SettingsPage() {
     gitHubConnection,
     figmaConnection,
     atlassianMCPConnection,
+    pagerDutyConnection,
+    sentryConnection,
+    newRelicConnection,
+    dataDogConnection,
+    grafanaConnection,
+    cloudWatchConnection,
     setAtlassianMCPConnection,
     setNotionConnection,
     setGitHubConnection,
     setFigmaConnection,
+    setPagerDutyConnection,
+    setSentryConnection,
+    setNewRelicConnection,
+    setDataDogConnection,
+    setGrafanaConnection,
+    setCloudWatchConnection,
   } = useOAuth();
   const { accessToken } = useUser();
   const [showGitHubModal, setShowGitHubModal] = useState(false);
   const [showFigmaModal, setShowFigmaModal] = useState(false);
+  const [showPagerDutyModal, setShowPagerDutyModal] = useState(false);
+  const [showSentryModal, setShowSentryModal] = useState(false);
+  const [showNewRelicModal, setShowNewRelicModal] = useState(false);
+  const [showDataDogModal, setShowDataDogModal] = useState(false);
+  const [showGrafanaModal, setShowGrafanaModal] = useState(false);
+  const [showCloudWatchModal, setShowCloudWatchModal] = useState(false);
 
   // useOAuthTokenHandler
   useOAuthTokenHandler();
@@ -142,6 +223,18 @@ export default function SettingsPage() {
         return gitHubConnection;
       case 'figma':
         return figmaConnection;
+      case 'pagerduty':
+        return pagerDutyConnection;
+      case 'sentry':
+        return sentryConnection;
+      case 'newrelic':
+        return newRelicConnection;
+      case 'datadog':
+        return dataDogConnection;
+      case 'cloudwatch':
+        return cloudWatchConnection;
+      case 'grafana':
+        return grafanaConnection;
       default:
         return { isConnected: false, id: 0 };
     }
@@ -160,6 +253,24 @@ export default function SettingsPage() {
         break;
       case 'figma':
         setShowFigmaModal(true);
+        break;
+      case 'pagerduty':
+        setShowPagerDutyModal(true);
+        break;
+      case 'sentry':
+        setShowSentryModal(true);
+        break;
+      case 'newrelic':
+        setShowNewRelicModal(true);
+        break;
+      case 'datadog':
+        setShowDataDogModal(true);
+        break;
+      case 'cloudwatch':
+        setShowCloudWatchModal(true);
+        break;
+      case 'grafana':
+        setShowGrafanaModal(true);
         break;
       default:
         break;
@@ -210,6 +321,48 @@ export default function SettingsPage() {
             });
             toast.success('Figma disconnected successfully');
             break;
+          case 'pagerduty':
+            setPagerDutyConnection({
+              isConnected: false,
+              id: 0,
+            });
+            toast.success('PagerDuty disconnected successfully');
+            break;
+          case 'sentry':
+            setSentryConnection({
+              isConnected: false,
+              id: 0,
+            });
+            toast.success('Sentry disconnected successfully');
+            break;
+          case 'newrelic':
+            setNewRelicConnection({
+              isConnected: false,
+              id: 0,
+            });
+            toast.success('New Relic disconnected successfully');
+            break;
+          case 'datadog':
+            setDataDogConnection({
+              isConnected: false,
+              id: 0,
+            });
+            toast.success('DataDog disconnected successfully');
+            break;
+          case 'cloudwatch':
+            setCloudWatchConnection({
+              isConnected: false,
+              id: 0,
+            });
+            toast.success('CloudWatch disconnected successfully');
+            break;
+          case 'grafana':
+            setGrafanaConnection({
+              isConnected: false,
+              id: 0,
+            });
+            toast.success('Grafana disconnected successfully');
+            break;
         }
       } else {
         toast.error(
@@ -233,7 +386,18 @@ export default function SettingsPage() {
 
         {/* All Integrations */}
         <div className='flex flex-wrap gap-4'>
-          {SERVICES.map(service => {
+          {SERVICES.toSorted((a, b) => {
+            // Sort by coming soon status first (false comes before true)
+            const aComingSoon = 'comingSoon' in a ? a.comingSoon : false;
+            const bComingSoon = 'comingSoon' in b ? b.comingSoon : false;
+
+            if (aComingSoon !== bComingSoon) {
+              return aComingSoon ? 1 : -1;
+            }
+
+            // Then sort alphabetically by title
+            return a.title.localeCompare(b.title);
+          }).map(service => {
             const connectionStatus = getConnectionStatus(service.id);
             return (
               <ServiceTile
@@ -264,6 +428,27 @@ export default function SettingsPage() {
 
       <GitHubModal open={showGitHubModal} onOpenChange={setShowGitHubModal} />
       <FigmaModal open={showFigmaModal} onOpenChange={setShowFigmaModal} />
+      <PagerDutyModal
+        open={showPagerDutyModal}
+        onOpenChange={setShowPagerDutyModal}
+      />
+      <SentryModal open={showSentryModal} onOpenChange={setShowSentryModal} />
+      <NewRelicModal
+        open={showNewRelicModal}
+        onOpenChange={setShowNewRelicModal}
+      />
+      <DataDogModal
+        open={showDataDogModal}
+        onOpenChange={setShowDataDogModal}
+      />
+      <CloudWatchModal
+        open={showCloudWatchModal}
+        onOpenChange={setShowCloudWatchModal}
+      />
+      <GrafanaModal
+        open={showGrafanaModal}
+        onOpenChange={setShowGrafanaModal}
+      />
     </div>
   );
 }

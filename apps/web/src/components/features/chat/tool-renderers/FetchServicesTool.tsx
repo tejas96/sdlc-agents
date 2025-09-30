@@ -4,6 +4,8 @@ import {
   ConfluenceIcon,
   NotionIcon,
   JiraIcon,
+  DataDogIcon,
+  SentryIcon,
 } from '@/components/icons';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -145,9 +147,8 @@ export const FetchServicesTool: React.FC<FetchServicesToolProps> = ({
         try {
           // Handle the result which might be wrapped in an array
           let issueData = result;
-
           // If result is a string, parse it
-          if (typeof result === 'string') {
+          if (typeof result === 'string' && result.includes('{')) {
             issueData = JSON.parse(result);
           }
 
@@ -294,6 +295,432 @@ export const FetchServicesTool: React.FC<FetchServicesToolProps> = ({
       statusDone = 'Page loaded';
       break;
     }
+
+    case 'mcp__notion__API-post-search': {
+      title = 'Search Notion';
+      icon = (
+        <NotionIcon className='h-4 w-4 text-gray-600 dark:text-gray-400' />
+      );
+
+      if (state === 'result' && result) {
+        try {
+          // Handle the result which might be wrapped in an array
+          let searchData = result;
+
+          // If result is a string, parse it
+          if (typeof result === 'string') {
+            searchData = JSON.parse(result);
+          }
+
+          // If result is an array (from the toolInvocation.result format), get the first item
+          if (Array.isArray(searchData) && searchData.length > 0) {
+            const firstItem = searchData[0];
+            if (
+              firstItem &&
+              typeof firstItem === 'object' &&
+              'text' in firstItem
+            ) {
+              searchData = JSON.parse(firstItem.text);
+            }
+          }
+
+          // Extract search results count
+          const results = searchData?.results || [];
+          const resultCount = results.length;
+          const query = args?.query || 'search';
+
+          contentText = `${query} (${resultCount} results)`;
+          titleTooltip = `Search for "${query}" returned ${resultCount} results`;
+        } catch (error) {
+          console.error('Error parsing Notion search data:', error);
+          contentText = args?.query || 'Notion Search';
+          titleTooltip = args?.query || '';
+        }
+      } else {
+        // While searching
+        contentText = args?.query
+          ? `Searching: ${args.query}...`
+          : 'Searching...';
+        titleTooltip = args?.query || '';
+      }
+
+      statusWorking = 'Searching...';
+      statusDone = 'Search completed';
+      break;
+    }
+
+    case 'mcp__datadog__get-monitor': {
+      title = 'Fetch DataDog Monitor';
+      icon = (
+        <DataDogIcon className='h-4 w-4 text-gray-600 dark:text-gray-400' />
+      );
+
+      if (state === 'result' && result) {
+        try {
+          // Handle the result which might be wrapped in an array
+          let monitorData = result;
+
+          // If result is a string, parse it
+          if (typeof result === 'string') {
+            monitorData = JSON.parse(result);
+          }
+
+          // If result is an array (from the toolInvocation.result format), get the first item
+          if (Array.isArray(monitorData) && monitorData.length > 0) {
+            const firstItem = monitorData[0];
+            if (
+              firstItem &&
+              typeof firstItem === 'object' &&
+              'text' in firstItem
+            ) {
+              monitorData = JSON.parse(firstItem.text);
+            }
+          }
+
+          // Extract monitor details
+          const monitorName = monitorData?.name || 'Monitor';
+          const monitorId = monitorData?.id || args?.monitorId;
+          const monitorType = monitorData?.type || '';
+          const status = monitorData?.overall_state || '';
+
+          contentText = `${monitorName} (ID: ${monitorId})`;
+          titleTooltip = `${monitorName} - ${monitorType} ${status ? `(${status})` : ''}`;
+        } catch (error) {
+          console.error('Error parsing DataDog monitor data:', error);
+          // Handle API failure case
+          if (typeof result === 'string' && result.includes('failed')) {
+            contentText = `Monitor ${args?.monitorId} (Failed)`;
+            titleTooltip = result;
+          } else {
+            contentText = `Monitor ${args?.monitorId || 'Unknown'}`;
+            titleTooltip = args?.monitorId || '';
+          }
+        }
+      } else {
+        // While fetching
+        contentText = args?.monitorId
+          ? `Loading monitor ${args.monitorId}...`
+          : 'Loading monitor...';
+        titleTooltip = args?.monitorId || '';
+      }
+
+      statusWorking = 'Fetching monitor...';
+      statusDone = 'Monitor loaded';
+      break;
+    }
+
+    case 'mcp__datadog__search-logs': {
+      title = 'Search DataDog Logs';
+      icon = (
+        <DataDogIcon className='h-4 w-4 text-gray-600 dark:text-gray-400' />
+      );
+
+      if (state === 'result' && result) {
+        try {
+          // Handle the result which might be wrapped in an array
+          let logData = result;
+
+          // If result is a string, parse it
+          if (typeof result === 'string') {
+            logData = JSON.parse(result);
+          }
+
+          // If result is an array (from the toolInvocation.result format), get the first item
+          if (Array.isArray(logData) && logData.length > 0) {
+            const firstItem = logData[0];
+            if (
+              firstItem &&
+              typeof firstItem === 'object' &&
+              'text' in firstItem
+            ) {
+              logData = JSON.parse(firstItem.text);
+            }
+          }
+
+          // Extract log search results
+          const logs = logData?.logs || [];
+          const logCount = logs.length;
+          const query = args?.filter?.query || 'logs';
+          const timeframe =
+            args?.filter?.from && args?.filter?.to
+              ? `${args.filter.from} to ${args.filter.to}`
+              : '';
+
+          contentText = `${query} (${logCount} logs)`;
+          titleTooltip = `Log search for "${query}" ${timeframe ? `from ${timeframe}` : ''} returned ${logCount} logs`;
+        } catch (error) {
+          console.error('Error parsing DataDog log data:', error);
+          // Handle API failure case
+          if (
+            typeof result === 'string' &&
+            result.includes('authorization failed')
+          ) {
+            contentText = 'Log Search (Auth Failed)';
+            titleTooltip = result;
+          } else {
+            contentText = args?.filter?.query || 'DataDog Logs';
+            titleTooltip = args?.filter?.query || '';
+          }
+        }
+      } else {
+        // While searching
+        const query = args?.filter?.query || 'logs';
+        contentText = `Searching logs: ${query}...`;
+        titleTooltip = query;
+      }
+
+      statusWorking = 'Searching logs...';
+      statusDone = 'Search completed';
+      break;
+    }
+
+    case 'mcp__sentry__get_issue_details': {
+      title = 'Fetch Sentry Issue';
+      icon = (
+        <SentryIcon className='h-4 w-4 text-gray-600 dark:text-gray-400' />
+      );
+
+      if (state === 'result' && result) {
+        try {
+          // Handle the result which might be wrapped in an array
+          let issueData = result;
+
+          // If result is a string, parse it if needed
+          if (typeof result === 'string') {
+            // Check if it's already markdown text or JSON
+            if (result.includes('# Issue')) {
+              // It's markdown format, extract issue ID and description
+              const issueIdMatch = result.match(/# Issue ([A-Z-]+\d+)/);
+              const descMatch = result.match(/\*\*Description\*\*: (.+)/);
+              const issueId = issueIdMatch?.[1] || '';
+              const description = descMatch?.[1] || '';
+
+              contentText = issueId ? `${issueId}` : 'Sentry Issue';
+              titleTooltip = description || args?.issueUrl || '';
+            } else {
+              issueData = JSON.parse(result);
+            }
+          }
+
+          // If result is an array (from the toolInvocation.result format), get the first item
+          if (Array.isArray(issueData) && issueData.length > 0) {
+            const firstItem = issueData[0];
+            if (
+              firstItem &&
+              typeof firstItem === 'object' &&
+              'text' in firstItem
+            ) {
+              const textContent = firstItem.text;
+              if (textContent.includes('# Issue')) {
+                // Extract from markdown format
+                const issueIdMatch = textContent.match(/# Issue ([A-Z-]+\d+)/);
+                const descMatch = textContent.match(
+                  /\*\*Description\*\*: (.+)/
+                );
+                const issueId = issueIdMatch?.[1] || '';
+                const description = descMatch?.[1] || '';
+
+                contentText = issueId ? `${issueId}` : 'Sentry Issue';
+                titleTooltip = description || args?.issueUrl || '';
+              } else {
+                issueData = JSON.parse(textContent);
+              }
+            }
+          }
+
+          // If we didn't get markdown format, try to extract from JSON
+          if (!contentText && issueData && typeof issueData === 'object') {
+            const issueId = issueData?.shortId || issueData?.id || '';
+            const title = issueData?.title || issueData?.culprit || '';
+
+            contentText = issueId ? `${issueId}` : 'Sentry Issue';
+            titleTooltip = title || args?.issueUrl || '';
+          }
+
+          // Fallback if no content extracted yet
+          if (!contentText) {
+            const urlParts = (args?.issueUrl || '').split('/');
+            const issueId = urlParts[urlParts.length - 2] || 'Issue';
+            contentText = issueId;
+            titleTooltip = args?.issueUrl || '';
+          }
+        } catch (error) {
+          console.error('Error parsing Sentry issue data:', error);
+          contentText = 'Sentry Issue';
+          titleTooltip = args?.issueUrl || '';
+        }
+      } else {
+        // While loading
+        const urlParts = (args?.issueUrl || '').split('/');
+        const issueId = urlParts[urlParts.length - 2] || 'issue';
+        contentText = `Loading ${issueId}...`;
+        titleTooltip = args?.issueUrl || '';
+      }
+
+      statusWorking = 'Fetching issue...';
+      statusDone = 'Issue loaded';
+      break;
+    }
+
+    case 'mcp__sentry__find_organizations': {
+      title = 'Fetch Sentry Organizations';
+      icon = (
+        <SentryIcon className='h-4 w-4 text-gray-600 dark:text-gray-400' />
+      );
+
+      if (state === 'result' && result) {
+        try {
+          // Handle the result which might be wrapped in an array
+          let orgData = result;
+
+          // If result is a string, check if it's markdown
+          if (typeof result === 'string') {
+            if (result.includes('# Organizations')) {
+              // Count organizations from markdown
+              const orgMatches = result.match(/## \*\*([^*]+)\*\*/g);
+              const orgCount = orgMatches ? orgMatches.length : 0;
+              contentText = `${orgCount} organizations`;
+              titleTooltip = `Found ${orgCount} Sentry organizations`;
+            } else {
+              orgData = JSON.parse(result);
+            }
+          }
+
+          // If result is an array (from the toolInvocation.result format), get the first item
+          if (Array.isArray(orgData) && orgData.length > 0) {
+            const firstItem = orgData[0];
+            if (
+              firstItem &&
+              typeof firstItem === 'object' &&
+              'text' in firstItem
+            ) {
+              const textContent = firstItem.text;
+              if (textContent.includes('# Organizations')) {
+                // Count organizations from markdown
+                const orgMatches = textContent.match(/## \*\*([^*]+)\*\*/g);
+                const orgCount = orgMatches ? orgMatches.length : 0;
+                contentText = `${orgCount} organizations`;
+                titleTooltip = `Found ${orgCount} Sentry organizations`;
+              } else {
+                orgData = JSON.parse(textContent);
+              }
+            }
+          }
+
+          // If we didn't get markdown format, try to extract from JSON
+          if (!contentText && orgData && Array.isArray(orgData)) {
+            contentText = `${orgData.length} organizations`;
+            titleTooltip = `Found ${orgData.length} Sentry organizations`;
+          }
+
+          // Fallback
+          if (!contentText) {
+            contentText = 'Sentry Organizations';
+            titleTooltip = 'Fetched organization list';
+          }
+        } catch (error) {
+          console.error('Error parsing Sentry organizations data:', error);
+          contentText = 'Sentry Organizations';
+          titleTooltip = 'Fetched organization list';
+        }
+      } else {
+        // While loading
+        contentText = 'Loading organizations...';
+        titleTooltip = 'Fetching Sentry organizations';
+      }
+
+      statusWorking = 'Fetching organizations...';
+      statusDone = 'Organizations loaded';
+      break;
+    }
+
+    case 'mcp__sentry__search_events': {
+      title = 'Search Sentry Events';
+      icon = (
+        <SentryIcon className='h-4 w-4 text-gray-600 dark:text-gray-400' />
+      );
+
+      if (state === 'result' && result) {
+        try {
+          // Handle the result which might be wrapped in an array
+          let eventData = result;
+          const query = args?.naturalLanguageQuery || args?.query || 'events';
+
+          // If result is a string, check for error messages
+          if (typeof result === 'string') {
+            if (
+              result.includes('Configuration Error') ||
+              result.includes('OPENAI_API_KEY')
+            ) {
+              contentText = `${query} (Config Error)`;
+              titleTooltip =
+                'Configuration error: OPENAI_API_KEY required for semantic search';
+            } else if (result.includes('# Events')) {
+              // Parse events from markdown
+              const eventMatches = result.match(/## Event \d+/g);
+              const eventCount = eventMatches ? eventMatches.length : 0;
+              contentText = `${query} (${eventCount} events)`;
+              titleTooltip = `Search for "${query}" returned ${eventCount} events`;
+            } else {
+              eventData = JSON.parse(result);
+            }
+          }
+
+          // If result is an array (from the toolInvocation.result format), get the first item
+          if (Array.isArray(eventData) && eventData.length > 0) {
+            const firstItem = eventData[0];
+            if (
+              firstItem &&
+              typeof firstItem === 'object' &&
+              'text' in firstItem
+            ) {
+              const textContent = firstItem.text;
+              if (textContent.includes('Configuration Error')) {
+                contentText = `${query} (Config Error)`;
+                titleTooltip =
+                  'Configuration error: OPENAI_API_KEY required for semantic search';
+              } else if (textContent.includes('# Events')) {
+                // Parse events from markdown
+                const eventMatches = textContent.match(/## Event \d+/g);
+                const eventCount = eventMatches ? eventMatches.length : 0;
+                contentText = `${query} (${eventCount} events)`;
+                titleTooltip = `Search for "${query}" returned ${eventCount} events`;
+              } else {
+                eventData = JSON.parse(textContent);
+              }
+            }
+          }
+
+          // If we didn't get markdown format, try to extract from JSON
+          if (!contentText && eventData && Array.isArray(eventData)) {
+            contentText = `${query} (${eventData.length} events)`;
+            titleTooltip = `Search for "${query}" returned ${eventData.length} events`;
+          }
+
+          // Fallback
+          if (!contentText) {
+            contentText = `${query}`;
+            titleTooltip = `Search for "${query}"`;
+          }
+        } catch (error) {
+          console.error('Error parsing Sentry events data:', error);
+          const query =
+            args?.naturalLanguageQuery || args?.query || 'Sentry Events';
+          contentText = query;
+          titleTooltip = `Search for "${query}"`;
+        }
+      } else {
+        // While searching
+        const query = args?.naturalLanguageQuery || args?.query || 'events';
+        contentText = `Searching: ${query}...`;
+        titleTooltip = `Searching Sentry for "${query}"`;
+      }
+
+      statusWorking = 'Searching events...';
+      statusDone = 'Search completed';
+      break;
+    }
+
     case 'text': {
       title = 'Assistant Message';
       icon = <FileText className='h-4 w-4 text-gray-600 dark:text-gray-400' />;

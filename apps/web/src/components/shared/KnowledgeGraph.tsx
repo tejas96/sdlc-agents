@@ -1,15 +1,15 @@
 'use client';
 
-// import dynamic from 'next/dynamic';
+import dynamic from 'next/dynamic';
 import { useEffect, useMemo, useRef, useState } from 'react';
-// import type { ForceGraphMethods } from 'react-force-graph-2d';
-// import type { NodeObject } from 'force-graph';
+import type { ForceGraphMethods } from 'react-force-graph-2d';
+import type { NodeObject } from 'force-graph';
 import type { KnowledgeNode, KnowledgeLink, GraphData } from '@/types';
 
 // Avoid SSR issues by dynamically importing the canvas component
-// const ForceGraph2D = dynamic(() => import('react-force-graph-2d'), {
-//   ssr: false,
-// }) as unknown as React.ComponentType<any>;
+const ForceGraph2D = dynamic(() => import('react-force-graph-2d'), {
+  ssr: false,
+}) as unknown as React.ComponentType<any>;
 
 const useContainerSize = () => {
   const ref = useRef<HTMLDivElement | null>(null);
@@ -263,65 +263,65 @@ const getAnimatedOffset = (nodeId: string, startTime: number) => {
   };
 };
 
-// const drawPill = (
-//   ctx: CanvasRenderingContext2D,
-//   x: number,
-//   y: number,
-//   text: string,
-//   options: {
-//     paddingX: number;
-//     paddingY: number;
-//     radius: number;
-//     bg: string;
-//     color: string;
-//     font: string;
-//     shadow?: string;
-//   }
-// ) => {
-//   const { paddingX, paddingY, radius, bg, color, font, shadow } = options;
-//   ctx.font = font;
-//   const metrics = ctx.measureText(text);
-//   const w = Math.ceil(metrics.width) + paddingX * 2;
-//   const h = 24 + paddingY * 2;
-//   const rx = x - w / 2;
-//   const ry = y - h / 2;
+const drawPill = (
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  text: string,
+  options: {
+    paddingX: number;
+    paddingY: number;
+    radius: number;
+    bg: string;
+    color: string;
+    font: string;
+    shadow?: string;
+  }
+) => {
+  const { paddingX, paddingY, radius, bg, color, font, shadow } = options;
+  ctx.font = font;
+  const metrics = ctx.measureText(text);
+  const w = Math.ceil(metrics.width) + paddingX * 2;
+  const h = 24 + paddingY * 2;
+  const rx = x - w / 2;
+  const ry = y - h / 2;
 
-//   if (shadow) {
-//     ctx.shadowColor = shadow;
-//     ctx.shadowBlur = 12;
-//   }
-//   ctx.fillStyle = bg;
-//   ctx.beginPath();
-//   ctx.moveTo(rx + radius, ry);
-//   ctx.lineTo(rx + w - radius, ry);
-//   ctx.quadraticCurveTo(rx + w, ry, rx + w, ry + radius);
-//   ctx.lineTo(rx + w, ry + h - radius);
-//   ctx.quadraticCurveTo(rx + w, ry + h, rx + w - radius, ry + h);
-//   ctx.lineTo(rx + radius, ry + h);
-//   ctx.quadraticCurveTo(rx, ry + h, rx, ry + h - radius);
-//   ctx.lineTo(rx, ry + radius);
-//   ctx.quadraticCurveTo(rx, ry, rx + radius, ry);
-//   ctx.closePath();
-//   ctx.fill();
-//   ctx.shadowBlur = 0;
+  if (shadow) {
+    ctx.shadowColor = shadow;
+    ctx.shadowBlur = 12;
+  }
+  ctx.fillStyle = bg;
+  ctx.beginPath();
+  ctx.moveTo(rx + radius, ry);
+  ctx.lineTo(rx + w - radius, ry);
+  ctx.quadraticCurveTo(rx + w, ry, rx + w, ry + radius);
+  ctx.lineTo(rx + w, ry + h - radius);
+  ctx.quadraticCurveTo(rx + w, ry + h, rx + w - radius, ry + h);
+  ctx.lineTo(rx + radius, ry + h);
+  ctx.quadraticCurveTo(rx, ry + h, rx, ry + h - radius);
+  ctx.lineTo(rx, ry + radius);
+  ctx.quadraticCurveTo(rx, ry, rx + radius, ry);
+  ctx.closePath();
+  ctx.fill();
+  ctx.shadowBlur = 0;
 
-//   ctx.fillStyle = color;
-//   ctx.textBaseline = 'middle';
-//   ctx.textAlign = 'center';
-//   ctx.fillText(text, x, y);
-// };
+  ctx.fillStyle = color;
+  ctx.textBaseline = 'middle';
+  ctx.textAlign = 'center';
+  ctx.fillText(text, x, y);
+};
 
 const KnowledgeGraph = () => {
   const { ref, width, height } = useContainerSize();
-  const fgRef = useRef(null)//useRef<ForceGraphMethods | undefined>(undefined);
-  // const [hasFit, setHasFit] = useState(false);
+  const fgRef = useRef<ForceGraphMethods | undefined>(undefined);
+  const [hasFit, setHasFit] = useState(false);
   const baseData = useMemo(createData, []);
-  // const [data, setData] = useState(baseData);
+  const [data, setData] = useState(baseData);
 
   // Initialize data with base positions
-  // useEffect(() => {
-  //   setData(baseData);
-  // }, [baseData]);
+  useEffect(() => {
+    setData(baseData);
+  }, [baseData]);
   const icons = useMemo(loadIcons, []);
   const [, forceRerender] = useState<number>(0);
   const animationRef = useRef<number | undefined>(undefined);
@@ -403,7 +403,7 @@ const KnowledgeGraph = () => {
             'linear-gradient(179.6deg, rgba(255, 171, 213, 0.14) 6.53%, rgba(30, 4, 162, 0.112) 57.79%, rgba(255, 69, 40, 0.14) 106.18%)',
         }}
       />
-      {/* <ForceGraph2D
+      <ForceGraph2D
         ref={fgRef as any}
         width={width}
         height={height}
@@ -538,7 +538,7 @@ const KnowledgeGraph = () => {
           ctx.arc(x, y, radius + 12, 0, 2 * Math.PI, false);
           ctx.fill();
         }}
-      /> */}
+      />
     </div>
   );
 };

@@ -8,7 +8,13 @@ import type {
   AtlassianSpace,
   NotionPage,
   FigmaFile,
+  ApiSpec,
+  ApiSpecState,
+  ApiTestCase,
+  TestCasesState,
+  ApiFrameworkState,
 } from '@/types';
+import type { LoggingService, IncidentService } from '@/types/integrations';
 
 type OutputConfigType = {
   type: string;
@@ -26,6 +32,8 @@ interface ProjectState {
   output_config_type: string[];
   output_config_content: string[];
   output: OutputConfigType[];
+  loggingServicesCache: Record<string, Record<string, LoggingService[]>>;
+  selectedIncidentServices: Record<string, string | null>;
   prdnotion: {
     pages: NotionPage[];
     selectedPages: { id: string; url: string }[];
@@ -50,12 +58,40 @@ interface ProjectState {
     tickets: AtlassianIssue[];
     selectedTickets: string[];
   };
-  prdfigma: {
+  docsfigma: {
     files: FigmaFile[];
     selectedFiles: string[];
   };
-  docsfigma: {
-    files: FigmaFile[];
+  loggingdatadog: {
+    logs: LoggingService[];
+  };
+  logginggrafana: {
+    logs: LoggingService[];
+  };
+  loggingcloudwatch: {
+    logs: LoggingService[];
+  };
+  incidentjira: {
+    incident: IncidentService | null;
+  };
+  incidentpagerduty: {
+    incident: IncidentService | null;
+  };
+  incidentsentry: {
+    incident: IncidentService | null;
+  };
+  incidentnewrelic: {
+    incident: IncidentService | null;
+  };
+  incidentdatadog: {
+    incident: IncidentService | null;
+  };
+  prdfiles: {
+    files: { name: string; uploadedAt: string }[];
+    selectedFiles: string[];
+  };
+  docsfiles: {
+    files: { name: string; uploadedAt: string }[];
     selectedFiles: string[];
   };
   cachedNotionPages: NotionPage[];
@@ -73,6 +109,9 @@ interface ProjectState {
       html_url: string;
     } | null;
   };
+  apiSpecs: ApiSpecState;
+  testCases: TestCasesState;
+  apiFrameworks: ApiFrameworkState;
   setPrdnotion: (prdnotion: {
     pages: NotionPage[];
     selectedPages: { id: string; url: string }[];
@@ -97,12 +136,32 @@ interface ProjectState {
     tickets: AtlassianIssue[];
     selectedTickets: string[];
   }) => void;
-  setPrdfigma: (prdfigma: {
+  setDocsfigma: (docsfigma: {
     files: FigmaFile[];
     selectedFiles: string[];
   }) => void;
-  setDocsfigma: (docsfigma: {
-    files: FigmaFile[];
+  setLoggingdatadog: (loggingdatadog: { logs: LoggingService[] }) => void;
+  setLogginggrafana: (logginggrafana: { logs: LoggingService[] }) => void;
+  setLoggingcloudwatch: (loggingcloudwatch: { logs: LoggingService[] }) => void;
+  setIncidentjira: (incidentjira: { incident: IncidentService | null }) => void;
+  setIncidentpagerduty: (incidentpagerduty: {
+    incident: IncidentService | null;
+  }) => void;
+  setIncidentsentry: (incidentsentry: {
+    incident: IncidentService | null;
+  }) => void;
+  setIncidentnewrelic: (incidentnewrelic: {
+    incident: IncidentService | null;
+  }) => void;
+  setIncidentdatadog: (incidentdatadog: {
+    incident: IncidentService | null;
+  }) => void;
+  setPrdfiles: (prdfiles: {
+    files: { name: string; uploadedAt: string }[];
+    selectedFiles: string[];
+  }) => void;
+  setDocsfiles: (docsfiles: {
+    files: { name: string; uploadedAt: string }[];
     selectedFiles: string[];
   }) => void;
   setCachedNotionPages: (cachedNotionPages: NotionPage[]) => void;
@@ -125,6 +184,10 @@ interface ProjectState {
       html_url: string;
     } | null
   ) => void;
+  setApiSpecs: (apiSpecs: ApiSpecState) => void;
+  addApiSpec: (apiSpec: Omit<ApiSpec, 'uploadedAt'>) => void;
+  removeApiSpec: (specId: string) => void;
+  toggleApiSpec: (specId: string) => void;
   setOutputConfigType: (output_config_type: string[]) => void;
   setOutputConfigContent: (output_config_content: string[]) => void;
   setOutput: (output: OutputConfigType[]) => void;
@@ -144,21 +207,49 @@ interface ProjectState {
   resetDocsnotion: () => void;
   resetDocsconfluence: () => void;
   resetDocsjira: () => void;
-  resetPrdfigma: () => void;
   resetDocsfigma: () => void;
+  resetLoggingdatadog: () => void;
+  resetLogginggrafana: () => void;
+  resetLoggingcloudwatch: () => void;
+  resetIncidentjira: () => void;
+  resetIncidentpagerduty: () => void;
+  resetIncidentsentry: () => void;
+  resetIncidentnewrelic: () => void;
+  resetIncidentdatadog: () => void;
+  resetPrdfiles: () => void;
+  resetDocsfiles: () => void;
   resetCachedNotionPages: () => void;
   resetCachedConfluenceSpaces: () => void;
   resetCachedConfluencePages: () => void;
   resetCachedJiraProjects: () => void;
   resetCachedJiraTickets: () => void;
+  resetApiSpecs: () => void;
+  setTestCases: (testCases: TestCasesState) => void;
+  addTestCase: (testCase: Omit<ApiTestCase, 'uploadedAt'>) => void;
+  removeTestCase: (testCaseId: string) => void;
+  toggleTestCase: (testCaseId: string) => void;
+  resetTestCases: () => void;
+  setApiFrameworks: (frameworks: ApiFrameworkState) => void;
+  updateApiFramework: (frameworkId: string, enabled: boolean) => void;
+  resetApiFrameworks: () => void;
   resetOutputConfigType: () => void;
   resetOutputConfigContent: () => void;
+  setLoggingServicesCache: (
+    provider: string,
+    searchKey: string,
+    services: LoggingService[]
+  ) => void;
+  clearLoggingServicesCache: (provider?: string) => void;
+  getLoggingServicesCache: (
+    provider: string,
+    searchKey: string
+  ) => LoggingService[] | null;
 }
 
 export const useProjectStore = create<ProjectState>()(
   devtools(
     persist(
-      set => ({
+      (set, get) => ({
         projectName: '',
         analysisType: 'deep',
         aiEngine: 'claude-4-sonnet',
@@ -190,11 +281,39 @@ export const useProjectStore = create<ProjectState>()(
           tickets: [],
           selectedTickets: [],
         },
-        prdfigma: {
+        docsfigma: {
           files: [],
           selectedFiles: [],
         },
-        docsfigma: {
+        loggingdatadog: {
+          logs: [],
+        },
+        logginggrafana: {
+          logs: [],
+        },
+        loggingcloudwatch: {
+          logs: [],
+        },
+        incidentjira: {
+          incident: null,
+        },
+        incidentpagerduty: {
+          incident: null,
+        },
+        incidentsentry: {
+          incident: null,
+        },
+        incidentnewrelic: {
+          incident: null,
+        },
+        incidentdatadog: {
+          incident: null,
+        },
+        prdfiles: {
+          files: [],
+          selectedFiles: [],
+        },
+        docsfiles: {
           files: [],
           selectedFiles: [],
         },
@@ -208,10 +327,28 @@ export const useProjectStore = create<ProjectState>()(
           selectedRepositories: [],
           selectedPR: null,
         },
+        apiSpecs: {
+          specs: [],
+          selectedSpecs: [],
+        },
+        testCases: {
+          testCases: [],
+          selectedTestCases: [],
+        },
+        apiFrameworks: {
+          frameworks: [
+            { id: 'playwright', name: 'Playwright', enabled: true },
+            { id: 'rest-assured', name: 'REST Assured', enabled: false },
+            { id: 'postman', name: 'Postman', enabled: false },
+          ],
+        },
         sessionId: '',
         output_config_type: [],
         output_config_content: [],
         output: [],
+        loggingServicesCache: {},
+        selectedIncidentProjects: {},
+        selectedIncidentServices: {},
         setSessionId: (sessionId: string) => set(() => ({ sessionId })),
         setAgentType: (agentType: string) => set(() => ({ agentType })),
         setUserPrompt: (userPrompt: string) => set(() => ({ userPrompt })),
@@ -246,14 +383,38 @@ export const useProjectStore = create<ProjectState>()(
           tickets: AtlassianIssue[];
           selectedTickets: string[];
         }) => set(() => ({ docsjira })),
-        setPrdfigma: (prdfigma: {
-          files: FigmaFile[];
-          selectedFiles: string[];
-        }) => set(() => ({ prdfigma })),
         setDocsfigma: (docsfigma: {
           files: FigmaFile[];
           selectedFiles: string[];
         }) => set(() => ({ docsfigma })),
+        setLoggingdatadog: (loggingdatadog: { logs: LoggingService[] }) =>
+          set(() => ({ loggingdatadog })),
+        setLogginggrafana: (logginggrafana: { logs: LoggingService[] }) =>
+          set(() => ({ logginggrafana })),
+        setLoggingcloudwatch: (loggingcloudwatch: { logs: LoggingService[] }) =>
+          set(() => ({ loggingcloudwatch })),
+        setIncidentjira: (incidentjira: { incident: IncidentService | null }) =>
+          set(() => ({ incidentjira })),
+        setIncidentpagerduty: (incidentpagerduty: {
+          incident: IncidentService | null;
+        }) => set(() => ({ incidentpagerduty })),
+        setIncidentsentry: (incidentsentry: {
+          incident: IncidentService | null;
+        }) => set(() => ({ incidentsentry })),
+        setIncidentnewrelic: (incidentnewrelic: {
+          incident: IncidentService | null;
+        }) => set(() => ({ incidentnewrelic })),
+        setIncidentdatadog: (incidentdatadog: {
+          incident: IncidentService | null;
+        }) => set(() => ({ incidentdatadog })),
+        setPrdfiles: (prdfiles: {
+          files: { name: string; uploadedAt: string }[];
+          selectedFiles: string[];
+        }) => set(() => ({ prdfiles })),
+        setDocsfiles: (docsfiles: {
+          files: { name: string; uploadedAt: string }[];
+          selectedFiles: string[];
+        }) => set(() => ({ docsfiles })),
         setCachedNotionPages: (cachedNotionPages: NotionPage[]) =>
           set(() => ({ cachedNotionPages })),
         setCachedConfluenceSpaces: (cachedConfluenceSpaces: AtlassianSpace[]) =>
@@ -290,6 +451,36 @@ export const useProjectStore = create<ProjectState>()(
         setOutputConfigContent: (output_config_content: string[]) =>
           set(() => ({ output_config_content })),
         setOutput: (output: OutputConfigType[]) => set(() => ({ output })),
+        setApiSpecs: (apiSpecs: ApiSpecState) => set(() => ({ apiSpecs })),
+        addApiSpec: (apiSpec: Omit<ApiSpec, 'uploadedAt'>) =>
+          set(state => ({
+            apiSpecs: {
+              specs: [
+                ...state.apiSpecs.specs,
+                {
+                  ...apiSpec,
+                  uploadedAt: new Date().toISOString(),
+                },
+              ],
+              selectedSpecs: [apiSpec.id], // Auto-select new spec (replacing any previous selection)
+            },
+          })),
+        removeApiSpec: (specId: string) =>
+          set(state => ({
+            apiSpecs: {
+              specs: state.apiSpecs.specs.filter(spec => spec.id !== specId),
+              selectedSpecs: state.apiSpecs.selectedSpecs.filter(
+                id => id !== specId
+              ),
+            },
+          })),
+        toggleApiSpec: (specId: string) =>
+          set(state => ({
+            apiSpecs: {
+              ...state.apiSpecs,
+              selectedSpecs: [specId], // Single-selection: always replace current selection
+            },
+          })),
         resetProject: () =>
           set(() => ({
             projectName: '',
@@ -324,11 +515,39 @@ export const useProjectStore = create<ProjectState>()(
               tickets: [],
               selectedTickets: [],
             },
-            prdfigma: {
+            docsfigma: {
               files: [],
               selectedFiles: [],
             },
-            docsfigma: {
+            loggingdatadog: {
+              logs: [],
+            },
+            logginggrafana: {
+              logs: [],
+            },
+            loggingcloudwatch: {
+              logs: [],
+            },
+            incidentjira: {
+              incident: null,
+            },
+            incidentpagerduty: {
+              incident: null,
+            },
+            incidentsentry: {
+              incident: null,
+            },
+            incidentnewrelic: {
+              incident: null,
+            },
+            incidentdatadog: {
+              incident: null,
+            },
+            prdfiles: {
+              files: [],
+              selectedFiles: [],
+            },
+            docsfiles: {
               files: [],
               selectedFiles: [],
             },
@@ -342,9 +561,27 @@ export const useProjectStore = create<ProjectState>()(
               selectedRepositories: [],
               selectedPR: null,
             },
+            apiSpecs: {
+              specs: [],
+              selectedSpecs: [],
+            },
+            testCases: {
+              testCases: [],
+              selectedTestCases: [],
+            },
+            apiFrameworks: {
+              frameworks: [
+                { id: 'playwright', name: 'Playwright', enabled: true },
+                { id: 'rest-assured', name: 'REST Assured', enabled: false },
+                { id: 'postman', name: 'Postman', enabled: false },
+              ],
+            },
             output_config_type: [],
             output_config_content: [],
             output: [],
+            loggingServicesCache: {},
+            selectedIncidentProjects: {},
+            selectedIncidentServices: {},
           })),
         resetGitHubRepos: () =>
           set(() => ({
@@ -396,16 +633,71 @@ export const useProjectStore = create<ProjectState>()(
               selectedTickets: [],
             },
           })),
-        resetPrdfigma: () =>
+        resetDocsfigma: () =>
           set(() => ({
-            prdfigma: {
+            docsfigma: {
               files: [],
               selectedFiles: [],
             },
           })),
-        resetDocsfigma: () =>
+        resetLoggingdatadog: () =>
           set(() => ({
-            docsfigma: {
+            loggingdatadog: {
+              logs: [],
+            },
+          })),
+        resetLogginggrafana: () =>
+          set(() => ({
+            logginggrafana: {
+              logs: [],
+            },
+          })),
+        resetLoggingcloudwatch: () =>
+          set(() => ({
+            loggingcloudwatch: {
+              logs: [],
+            },
+          })),
+        resetIncidentjira: () =>
+          set(() => ({
+            incidentjira: {
+              incident: null,
+            },
+          })),
+        resetIncidentpagerduty: () =>
+          set(() => ({
+            incidentpagerduty: {
+              incident: null,
+            },
+          })),
+        resetIncidentsentry: () =>
+          set(() => ({
+            incidentsentry: {
+              incident: null,
+            },
+          })),
+        resetIncidentnewrelic: () =>
+          set(() => ({
+            incidentnewrelic: {
+              incident: null,
+            },
+          })),
+        resetIncidentdatadog: () =>
+          set(() => ({
+            incidentdatadog: {
+              incident: null,
+            },
+          })),
+        resetPrdfiles: () =>
+          set(() => ({
+            prdfiles: {
+              files: [],
+              selectedFiles: [],
+            },
+          })),
+        resetDocsfiles: () =>
+          set(() => ({
+            docsfiles: {
               files: [],
               selectedFiles: [],
             },
@@ -417,9 +709,110 @@ export const useProjectStore = create<ProjectState>()(
           set(() => ({ cachedConfluencePages: [] })),
         resetCachedJiraProjects: () => set(() => ({ cachedJiraProjects: [] })),
         resetCachedJiraTickets: () => set(() => ({ cachedJiraTickets: [] })),
+        resetApiSpecs: () =>
+          set(() => ({
+            apiSpecs: {
+              specs: [],
+              selectedSpecs: [],
+            },
+          })),
+        setTestCases: (testCases: TestCasesState) => set(() => ({ testCases })),
+        addTestCase: (testCase: Omit<ApiTestCase, 'uploadedAt'>) =>
+          set(state => ({
+            testCases: {
+              ...state.testCases,
+              testCases: [
+                ...state.testCases.testCases,
+                {
+                  ...testCase,
+                  uploadedAt: new Date().toISOString(),
+                },
+              ],
+            },
+          })),
+        removeTestCase: (testCaseId: string) =>
+          set(state => ({
+            testCases: {
+              testCases: state.testCases.testCases.filter(
+                testCase => testCase.id !== testCaseId
+              ),
+              selectedTestCases: state.testCases.selectedTestCases.filter(
+                id => id !== testCaseId
+              ),
+            },
+          })),
+        toggleTestCase: (testCaseId: string) =>
+          set(state => ({
+            testCases: {
+              ...state.testCases,
+              selectedTestCases: state.testCases.selectedTestCases.includes(
+                testCaseId
+              )
+                ? state.testCases.selectedTestCases.filter(
+                    id => id !== testCaseId
+                  )
+                : [...state.testCases.selectedTestCases, testCaseId],
+            },
+          })),
+        resetTestCases: () =>
+          set(() => ({
+            testCases: {
+              testCases: [],
+              selectedTestCases: [],
+            },
+          })),
+        setApiFrameworks: (frameworks: ApiFrameworkState) =>
+          set(() => ({ apiFrameworks: frameworks })),
+        updateApiFramework: (frameworkId: string, enabled: boolean) =>
+          set(state => ({
+            apiFrameworks: {
+              frameworks: state.apiFrameworks.frameworks.map(framework =>
+                framework.id === frameworkId
+                  ? { ...framework, enabled }
+                  : framework
+              ),
+            },
+          })),
+        resetApiFrameworks: () =>
+          set(() => ({
+            apiFrameworks: {
+              frameworks: [
+                { id: 'playwright', name: 'Playwright', enabled: true },
+                { id: 'rest-assured', name: 'REST Assured', enabled: false },
+                { id: 'postman', name: 'Postman', enabled: false },
+              ],
+            },
+          })),
         resetOutputConfigType: () => set(() => ({ output_config_type: [] })),
         resetOutputConfigContent: () =>
           set(() => ({ output_config_content: [] })),
+        setLoggingServicesCache: (
+          provider: string,
+          searchKey: string,
+          services: LoggingService[]
+        ) =>
+          set(state => ({
+            loggingServicesCache: {
+              ...state.loggingServicesCache,
+              [provider]: {
+                ...state.loggingServicesCache[provider],
+                [searchKey]: services,
+              },
+            },
+          })),
+        clearLoggingServicesCache: (provider?: string) =>
+          set(state => ({
+            loggingServicesCache: provider
+              ? {
+                  ...state.loggingServicesCache,
+                  [provider]: {},
+                }
+              : {},
+          })),
+        getLoggingServicesCache: (provider: string, searchKey: string) => {
+          const state = get();
+          return state.loggingServicesCache[provider]?.[searchKey] || null;
+        },
       }),
       {
         name: 'project-storage',

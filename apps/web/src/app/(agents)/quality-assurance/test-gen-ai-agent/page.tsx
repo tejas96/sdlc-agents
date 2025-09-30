@@ -26,9 +26,6 @@ export default function TestGenAIAgentPage() {
 
   return (
     <div className='space-y-8'>
-      <div className='mb-3 flex items-center gap-3'>
-        <h2 className='text-xl font-bold'>TestGen AI Agent</h2>
-      </div>
       <p className='text-muted-foreground mb-4 text-sm'>
         Auto-generate functional and scenario-based test cases using structured
         documents and project tracking tools.

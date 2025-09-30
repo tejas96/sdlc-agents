@@ -30,7 +30,13 @@ import type { RepositoryState } from '@/types';
 import { getRelativeTime } from '@/lib/utils';
 import { useProject } from '@/hooks/useProject';
 
-export function RepositorySelector() {
+interface RepositorySelectorProps {
+  optional?: boolean;
+}
+
+export function RepositorySelector({
+  optional = false,
+}: RepositorySelectorProps) {
   const [repoSearchQuery, setRepoSearchQuery] = useState('');
   const [showGitHubModal, setShowGitHubModal] = useState(false);
   const [isLoadingDisconnect, setIsLoadingDisconnect] = useState(false);
@@ -215,7 +221,9 @@ export function RepositorySelector() {
   return (
     <SectionWrapper
       icon={<GitIcon className='h-4 w-4' />}
-      title='Select Repositories'
+      title={
+        optional ? 'Select Repositories (Optional)' : 'Select Repositories'
+      }
     >
       <div className='space-y-4'>
         {/* Connected state header */}

@@ -20,7 +20,9 @@ const SectionWrapper = React.forwardRef<HTMLDivElement, SectionWrapperProps>(
       >
         <div className='flex items-center gap-2'>
           <div className='rounded-full border border-gray-200 p-2'>{icon}</div>
-          <h3 className='font-semibold'>{title}</h3>
+          <div className='flex-1'>
+            <h3 className='font-semibold'>{title}</h3>
+          </div>
         </div>
         <div className='space-y-4'>
           <div className='space-y-3'>{children}</div>

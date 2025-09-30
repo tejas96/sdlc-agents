@@ -1,5 +1,5 @@
 import type { ApiError } from './api';
-import type { DocumentType } from './common';
+import type { SupportingDocType, PRDBasedType } from './common';
 // ========================================
 // NOTION TYPES
 // ========================================
@@ -75,5 +75,5 @@ export interface NotionPagesModalProps {
     selectedPages: NotionPage[],
     pageReferences: { id: string; url: string }[]
   ) => void;
-  type: DocumentType;
+  type: SupportingDocType | PRDBasedType;
 }

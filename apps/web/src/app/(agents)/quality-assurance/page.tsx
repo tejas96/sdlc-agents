@@ -22,6 +22,14 @@ const QUALITY_ASSURANCE_TOOLS = [
     agentType: 'test_case_generation',
   },
   {
+    id: 'api_testing_suite_agent',
+    heading: 'API Testing Suite Agent',
+    description: 'Generate automated API test suites with validations.',
+    icon: <APITestingSuiteIcon className='h-8 w-8' />,
+    navigateTo: '/quality-assurance/api-testing-suite-agent',
+    agentType: 'api_testing_suite',
+  },
+  {
     id: 'test_execution_agent',
     heading: 'Test Execution Agent',
     description:
@@ -46,14 +54,7 @@ const QUALITY_ASSURANCE_TOOLS = [
     navigateTo: '/quality-assurance/self-healing-test-suite',
     badgeStatus: 'COMING SOON' as const,
   },
-  {
-    id: 'api_testing_suite_agent',
-    heading: 'API Testing Suite Agent',
-    description: 'Generate automated API test suites with validations.',
-    icon: <APITestingSuiteIcon className='h-8 w-8' />,
-    navigateTo: '/quality-assurance/api-testing-suite',
-    badgeStatus: 'COMING SOON' as const,
-  },
+
   {
     id: 'performance_testing_agent',
     heading: 'Performance Testing Agent',

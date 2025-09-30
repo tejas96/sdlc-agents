@@ -1,4 +1,3 @@
-import { toast } from 'sonner';
 import type {
   Repository,
   GitHubBranch,
@@ -17,7 +16,13 @@ import type {
   Integration,
   CreateIntegrationData,
   UpdateIntegrationData,
+  LoggingService,
+  IncidentService,
+  IncidentProject,
+  Environment,
 } from '@/types';
+import type { FileUploadResponse, FileDeleteResponse } from '@/types/files';
+import { toast } from 'sonner';
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
 
@@ -104,6 +109,65 @@ export const API_ENDPOINTS = {
   SESSION: {
     CREATE: (agentType: string) => `/agents/${agentType}/sessions`,
   },
+  INTEGRATION_ENVIRONMENTS: {
+    LIST: (projectId: string, search?: string) =>
+      `/integrations/${projectId}/environments${search ? `?search=${encodeURIComponent(search)}` : ''}`,
+  },
+  INTEGRATION_LOGS_SERVICES: {
+    LIST: (provider: string, search?: string) =>
+      `/integrations/${provider}/services${search ? `?search=${encodeURIComponent(search)}` : ''}`,
+  },
+  INTEGRATION_INCIDENTS_PROJECTS: {
+    LIST: (provider: string, search?: string) =>
+      `/integrations/${provider}/projects${search ? `?search=${encodeURIComponent(search)}` : ''}`,
+  },
+  INTEGRATION_INCIDENTS: {
+    LIST: (
+      provider: string,
+      start_time: string,
+      end_time: string,
+      search?: string,
+      environment?: string,
+      project_id?: string,
+      service_id?: string,
+      entity_name?: string,
+      limit?: number
+    ) => {
+      let url = `/integrations/${provider}/incidents?start_time=${encodeURIComponent(start_time)}&end_time=${encodeURIComponent(end_time)}`;
+
+      if (search && search.trim()) {
+        url += `&search=${encodeURIComponent(search.trim())}`;
+      }
+
+      if (environment && environment.trim()) {
+        url += `&environment=${encodeURIComponent(environment.trim())}`;
+      }
+
+      if (project_id && project_id.trim()) {
+        url += `&project_id=${encodeURIComponent(project_id.trim())}`;
+      }
+
+      if (service_id && service_id.trim()) {
+        url += `&service_id=${encodeURIComponent(service_id.trim())}`;
+      }
+
+      if (entity_name && entity_name.trim()) {
+        url += `&entity_name=${encodeURIComponent(entity_name.trim())}`;
+      }
+      if (limit && limit > 0) {
+        url += `&limit=${limit}`;
+      }
+
+      return url;
+    },
+    FROM_URL: (url: string, provider: string) =>
+      `/integrations/incidents/from-url?url=${encodeURIComponent(url)}&provider=${encodeURIComponent(provider)}`,
+  },
+  FILES: {
+    UPLOAD: () => `/files/upload`,
+    DELETE: (filename: string) =>
+      `/files/user-files/${encodeURIComponent(filename)}`,
+  },
 } as const;
 
 interface RequestConfig extends RequestInit {
@@ -138,7 +202,13 @@ export async function apiCall<T = any>({
 
   // Add body for POST, PUT, PATCH requests
   if (data && ['POST', 'PUT', 'PATCH'].includes(method.toUpperCase())) {
-    requestConfig.body = JSON.stringify(data);
+    if (data instanceof FormData) {
+      requestConfig.body = data;
+      // IMPORTANT: Remove Content-Type for FormData - browser will set it with boundary
+      delete (requestConfig.headers as any)['Content-Type'];
+    } else {
+      requestConfig.body = JSON.stringify(data);
+    }
   }
 
   try {
@@ -406,6 +476,56 @@ export const figmaApi = {
     }),
 };
 
+// File Upload API functions
+export const filesUploadApi = {
+  // Upload a file to user's file storage
+  upload: (files: File[], accessToken: string) => {
+    if (files.length === 0) {
+      return Promise.resolve({
+        success: false,
+        error: 'No files provided for upload',
+      } as ApiResponse<FileUploadResponse>);
+    }
+
+    if (!accessToken) {
+      return Promise.resolve({
+        success: false,
+        error: 'No access token provided',
+      } as ApiResponse<FileUploadResponse>);
+    }
+
+    const formData = new FormData();
+    formData.append('file', files[0]);
+
+    return apiCall<FileUploadResponse>({
+      endpoint: API_ENDPOINTS.FILES.UPLOAD(),
+      method: 'POST',
+      data: formData,
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+  },
+
+  // Delete a file from user's file storage
+  delete: (filename: string, accessToken: string) => {
+    if (!accessToken) {
+      return Promise.resolve({
+        success: false,
+        error: 'No access token provided',
+      } as ApiResponse<FileDeleteResponse>);
+    }
+
+    return apiCall<FileDeleteResponse>({
+      endpoint: API_ENDPOINTS.FILES.DELETE(filename),
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+  },
+};
+
 // Session API functions
 export const sessionApi = {
   // Create a new session
@@ -414,6 +534,83 @@ export const sessionApi = {
       endpoint: API_ENDPOINTS.SESSION.CREATE(agentType),
       method: 'POST',
       data: payload,
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    }),
+};
+
+export const integrationLogsServicesApi = {
+  list: (provider: string, accessToken: string, search?: string) =>
+    apiCall<LoggingService[]>({
+      endpoint: API_ENDPOINTS.INTEGRATION_LOGS_SERVICES.LIST(provider, search),
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    }),
+};
+
+export const integrationIncidentsProjectsApi = {
+  list: (provider: string, accessToken: string, search?: string) =>
+    apiCall<IncidentProject[]>({
+      endpoint: API_ENDPOINTS.INTEGRATION_INCIDENTS_PROJECTS.LIST(
+        provider,
+        search
+      ),
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    }),
+};
+
+export const integrationIncidentsApi = {
+  list: (
+    provider: string,
+    start_time: string,
+    end_time: string,
+    accessToken: string,
+    search?: string,
+    environment?: string,
+    project_id?: string,
+    service_id?: string,
+    entity_name?: string,
+    limit?: number
+  ) =>
+    apiCall<IncidentService[]>({
+      endpoint: API_ENDPOINTS.INTEGRATION_INCIDENTS.LIST(
+        provider,
+        start_time,
+        end_time,
+        search,
+        environment,
+        project_id,
+        service_id,
+        entity_name,
+        limit
+      ),
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    }),
+
+  fromUrl: (url: string, accessToken: string, provider: string) =>
+    apiCall<IncidentService>({
+      endpoint: API_ENDPOINTS.INTEGRATION_INCIDENTS.FROM_URL(url, provider),
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    }),
+};
+
+export const integrationEnvironmentsApi = {
+  list: (projectId: string, accessToken: string, search?: string) =>
+    apiCall<Environment[]>({
+      endpoint: API_ENDPOINTS.INTEGRATION_ENVIRONMENTS.LIST(projectId, search),
+      method: 'GET',
       headers: {
         Authorization: `Bearer ${accessToken}`,
       },

@@ -3,7 +3,7 @@
 import { useRef, useEffect, useMemo, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Send, Square, Sparkles, FigmaIcon } from 'lucide-react';
+import { Send, Square, Sparkles } from 'lucide-react';
 import { ChatbotIcon, JiraIcon } from '@/components/icons';
 import { useChat } from '@ai-sdk/react';
 import {
@@ -19,16 +19,23 @@ import CreatedFilesAccordion from '@/components/features/chat/CreatedFilesAccord
 import {
   NotionIcon,
   ConfluenceIcon,
-  LineChartIcon,
   GitIcon,
   MagicWandIcon,
+  FigmaIcon,
+  PagerDutyIcon,
+  NewRelicIcon,
+  DataDogIcon,
+  SentryIcon,
+  GrafanaIcon,
+  FileIcon,
 } from '@/components/icons';
 import { ReportHeader } from '@/components/features/chat/ReportHeader';
 import KnowledgeGraph from '@/components/shared/KnowledgeGraph';
 import { useUser } from '@/hooks/useUser';
 import { useProject } from '@/hooks/useProject';
-
+import { RCAAgent } from '@/components/features/chat/Development/RCAAgent';
 import { RequirementsTable } from '@/components/features/product-management/RequirementsTable';
+import { ApiTestingReport } from '../api-testing/ApiTestingReport';
 
 interface CreatedFile {
   path: string;
@@ -55,10 +62,20 @@ export default function Chat({ sessionID, regenerate }: ChatProps) {
     prdnotion,
     prdconfluence,
     prdjira,
+    prdfiles,
     docsnotion,
     docsconfluence,
-    prdfigma,
     docsfigma,
+    docsjira,
+    apiSpecs,
+    incidentjira,
+    incidentpagerduty,
+    incidentsentry,
+    incidentnewrelic,
+    incidentdatadog,
+    loggingdatadog,
+    logginggrafana,
+    docsfiles,
   } = useProject();
 
   const firstRender = useRef(true);
@@ -184,6 +201,16 @@ export default function Chat({ sessionID, regenerate }: ChatProps) {
         title: 'Code Reviewer Agent',
         description: 'Ask questions about your code review analysis',
       };
+    } else if (agentType === 'api_testing_suite') {
+      return {
+        title: 'API Testing Suite Agent',
+        description: 'Ask questions about your API testing analysis',
+      };
+    } else if (agentType === 'root_cause_analysis') {
+      return {
+        title: 'Root Cause Analysis Agent',
+        description: 'Ask questions about your root cause analysis',
+      };
     } else {
       return {
         title: 'Optima AI',
@@ -214,6 +241,7 @@ export default function Chat({ sessionID, regenerate }: ChatProps) {
                 notion:
                   prdnotion.selectedPages.length > 0 ||
                   docsnotion.selectedPages.length > 0,
+                files: prdfiles.files.length > 0 || docsfiles.files.length > 0,
               }}
               data={data?.filter(Boolean) as any}
             />
@@ -230,8 +258,9 @@ export default function Chat({ sessionID, regenerate }: ChatProps) {
             selectedPR={gitHubRepos.selectedPR}
             notionPages={[...prdnotion.pages, ...docsnotion.pages]}
             confluencePages={[...prdconfluence.pages, ...docsconfluence.pages]}
-            figmaPages={[...prdfigma.files, ...docsfigma.files]}
+            figmaPages={[...docsfigma.files]}
             jiraTickets={prdjira.tickets}
+            uploadedFiles={[...prdfiles.files, ...docsfiles.files]}
             isComplete={!isStreaming}
           />
         );
@@ -255,6 +284,7 @@ export default function Chat({ sessionID, regenerate }: ChatProps) {
                 notion:
                   prdnotion.selectedPages.length > 0 ||
                   docsnotion.selectedPages.length > 0,
+                files: prdfiles.files.length > 0 || docsfiles.files.length > 0,
               }}
               data={data?.filter(Boolean) as any}
               append={append}
@@ -278,8 +308,74 @@ export default function Chat({ sessionID, regenerate }: ChatProps) {
             selectedPR={gitHubRepos.selectedPR}
             notionPages={[...prdnotion.pages, ...docsnotion.pages]}
             confluencePages={[...prdconfluence.pages, ...docsconfluence.pages]}
-            figmaPages={[...prdfigma.files, ...docsfigma.files]}
+            figmaPages={[...docsfigma.files]}
             jiraTickets={prdjira.tickets}
+            uploadedFiles={[...prdfiles.files, ...docsfiles.files]}
+            isComplete={!isStreaming}
+          />
+        );
+      }
+    } else if (agentType === 'root_cause_analysis') {
+      if (data && data.length > 0) {
+        return (
+          <div className='flex h-full flex-col'>
+            <ReportHeader
+              analysisScope={analysisType}
+              selectedEngine={aiEngine}
+              repositories={gitHubRepos.repositories}
+              onRegenerate={regenerate}
+              agentType={agentType}
+              usedServices={{
+                jira: !!incidentjira.incident,
+                confluence: docsconfluence.selectedPages.length > 0,
+                notion: docsnotion.selectedPages.length > 0,
+                pagerduty: !!incidentpagerduty.incident,
+                newrelic: !!incidentnewrelic.incident,
+                datadog:
+                  !!incidentdatadog.incident || loggingdatadog.logs.length > 0,
+                sentry: !!incidentsentry.incident,
+                grafana: logginggrafana.logs.length > 0,
+              }}
+              data={data?.filter(Boolean) as any}
+              append={append}
+            />
+
+            <div className='flex min-h-0 flex-1 flex-col'>
+              <div className='min-h-0 flex-1'>
+                <RCAAgent
+                  data={data?.filter(Boolean) as any}
+                  append={append}
+                  isStreaming={isStreaming}
+                />
+              </div>
+            </div>
+          </div>
+        );
+      } else {
+        return (
+          <AnalysisLoader
+            repositories={gitHubRepos.repositories}
+            notionPages={[...prdnotion.pages, ...docsnotion.pages]}
+            confluencePages={[...prdconfluence.pages, ...docsconfluence.pages]}
+            figmaPages={[...docsfigma.files]}
+            jiraTickets={prdjira.tickets}
+            jiraIncident={incidentjira.incident}
+            pagerduty={incidentpagerduty.incident || undefined}
+            newrelic={{
+              incident: incidentnewrelic.incident,
+              hasData: !!incidentnewrelic.incident,
+            }}
+            datadog={{
+              incident: incidentdatadog.incident,
+              logs: loggingdatadog.logs,
+              hasData:
+                !!incidentdatadog.incident || loggingdatadog.logs.length > 0,
+            }}
+            sentry={{
+              incident: incidentsentry.incident,
+              hasData: !!incidentsentry.incident,
+            }}
+            grafana={logginggrafana.logs}
             isComplete={!isStreaming}
           />
         );
@@ -304,6 +400,7 @@ export default function Chat({ sessionID, regenerate }: ChatProps) {
                 notion:
                   prdnotion.selectedPages.length > 0 ||
                   docsnotion.selectedPages.length > 0,
+                files: prdfiles.files.length > 0 || docsfiles.files.length > 0,
               }}
               data={data?.filter(Boolean) as any}
             />
@@ -333,6 +430,7 @@ export default function Chat({ sessionID, regenerate }: ChatProps) {
                 notion:
                   prdnotion.selectedPages.length > 0 ||
                   docsnotion.selectedPages.length > 0,
+                files: prdfiles.files.length > 0 || docsfiles.files.length > 0,
               }}
               data={data?.filter(Boolean) as any}
               append={append}
@@ -350,8 +448,48 @@ export default function Chat({ sessionID, regenerate }: ChatProps) {
             selectedPR={gitHubRepos.selectedPR}
             notionPages={[...prdnotion.pages, ...docsnotion.pages]}
             confluencePages={[...prdconfluence.pages, ...docsconfluence.pages]}
-            figmaPages={[...prdfigma.files, ...docsfigma.files]}
+            figmaPages={[...docsfigma.files]}
             jiraTickets={prdjira.tickets}
+            uploadedFiles={[...prdfiles.files, ...docsfiles.files]}
+            isComplete={!isStreaming}
+          />
+        );
+      }
+    } else if (agentType === 'api_testing_suite') {
+      if (data && data.length > 0) {
+        return (
+          <div className='h-full overflow-y-auto'>
+            <ReportHeader
+              analysisScope={analysisType}
+              selectedEngine={aiEngine}
+              repositories={gitHubRepos.repositories}
+              onRegenerate={regenerate}
+              createdFiles={createdFiles}
+              agentType={agentType}
+              usedServices={{
+                jira: docsjira.selectedTickets.length > 0,
+                confluence: docsconfluence.selectedPages.length > 0,
+                notion: docsnotion.selectedPages.length > 0,
+              }}
+              data={data?.filter(Boolean) as any}
+            />
+            <ApiTestingReport
+              data={(data?.filter(Boolean) as any[]) || []}
+              append={append}
+            />
+          </div>
+        );
+      } else {
+        return (
+          <AnalysisLoader
+            repositories={gitHubRepos.repositories}
+            selectedPR={gitHubRepos.selectedPR}
+            notionPages={docsnotion.pages}
+            confluencePages={docsconfluence.pages}
+            figmaPages={docsfigma.files}
+            jiraTickets={docsjira.tickets}
+            uploadedFiles={docsfiles.files}
+            apiSpecs={apiSpecs.specs}
             isComplete={!isStreaming}
           />
         );
@@ -362,7 +500,7 @@ export default function Chat({ sessionID, regenerate }: ChatProps) {
           repositories={gitHubRepos.repositories}
           notionPages={[...prdnotion.pages, ...docsnotion.pages]}
           confluencePages={[...prdconfluence.pages, ...docsconfluence.pages]}
-          figmaPages={[...prdfigma.files, ...docsfigma.files]}
+          figmaPages={[...docsfigma.files]}
           jiraTickets={prdjira.tickets}
           isComplete={!isStreaming}
         />
@@ -400,7 +538,6 @@ export default function Chat({ sessionID, regenerate }: ChatProps) {
           <div className='border-b px-4 py-3'>
             <div className='flex items-center justify-between'>
               <div className='flex items-center gap-2'>
-                <LineChartIcon className='h-4 w-4' />
                 <h3 className='text-lg font-semibold text-gray-900'>
                   Analysis Context
                 </h3>
@@ -442,10 +579,58 @@ export default function Chat({ sessionID, regenerate }: ChatProps) {
                   &nbsp; tickets: {prdjira.selectedTickets.length}
                 </Badge>
               )}
-              {prdfigma.files.length > 0 && (
+              {docsfigma.files.length > 0 && (
                 <Badge variant='secondary' className='text-xs font-normal'>
                   <FigmaIcon className='h-4 w-4' />
-                  &nbsp; files: {prdfigma.files.length}
+                  &nbsp; files: {docsfigma.files.length}
+                </Badge>
+              )}
+              {incidentjira.incident && (
+                <Badge variant='secondary' className='text-xs font-normal'>
+                  <JiraIcon className='h-4 w-4' />
+                  &nbsp;Jira (Incident)
+                </Badge>
+              )}
+              {incidentpagerduty.incident && (
+                <Badge variant='secondary' className='text-xs font-normal'>
+                  <PagerDutyIcon className='h-4 w-4' />
+                  &nbsp; PagerDuty (Incident)
+                </Badge>
+              )}
+              {incidentnewrelic.incident && (
+                <Badge variant='secondary' className='text-xs font-normal'>
+                  <NewRelicIcon className='h-4 w-4' />
+                  &nbsp; New Relic (Incident)
+                </Badge>
+              )}
+              {(incidentdatadog.incident || loggingdatadog.logs.length > 0) && (
+                <Badge variant='secondary' className='text-xs font-normal'>
+                  <DataDogIcon className='h-4 w-4' />
+                  &nbsp; DataDog{' '}
+                  {incidentdatadog.incident && loggingdatadog.logs.length > 0
+                    ? '(Incident & Logs)'
+                    : incidentdatadog.incident
+                      ? '(Incident)'
+                      : '(Logs)'}
+                </Badge>
+              )}
+              {incidentsentry.incident && (
+                <Badge variant='secondary' className='text-xs font-normal'>
+                  <SentryIcon className='h-4 w-4' />
+                  &nbsp; Sentry (Incident)
+                </Badge>
+              )}
+              {logginggrafana.logs.length > 0 && (
+                <Badge variant='secondary' className='text-xs font-normal'>
+                  <GrafanaIcon className='h-4 w-4' />
+                  &nbsp; Grafana (Logs)
+                </Badge>
+              )}
+
+              {(prdfiles.files.length > 0 || docsfiles.files.length > 0) && (
+                <Badge variant='secondary' className='text-xs font-normal'>
+                  <FileIcon className='h-4 w-4' />
+                  &nbsp; files: {prdfiles.files.length + docsfiles.files.length}
                 </Badge>
               )}
               <Badge variant='secondary' className='text-xs font-normal'>

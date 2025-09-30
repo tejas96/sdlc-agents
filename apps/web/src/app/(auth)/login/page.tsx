@@ -21,6 +21,13 @@ const LoginForm = () => {
     setAtlassianMCPConnection,
     setGitHubConnection,
     setFigmaConnection,
+    setDataDogConnection,
+    setGrafanaConnection,
+    setNewRelicConnection,
+    setSentryConnection,
+    setPagerDutyConnection,
+    setCloudWatchConnection,
+    setUserFilesConnection,
   } = useOAuth();
   const [emailInput, setEmailInput] = useState('');
   const [password, setPassword] = useState('');
@@ -32,17 +39,10 @@ const LoginForm = () => {
     setIsLoading(true);
 
     try {
-      const response = {
-        data:{
-            access_token: 'string',
-            token_type: 'string',
-            expires_in: 1000,
-        }
-      }
-    //   }await authApi.login({
-    //     email: emailInput,
-    //     password: password,
-    //   });
+      const response = await authApi.login({
+        email: emailInput,
+        password: password,
+      });
 
       if (response.data?.access_token) {
         toast.success('Login successful');
@@ -67,6 +67,13 @@ const LoginForm = () => {
               setAtlassianMCPConnection,
               setGitHubConnection,
               setFigmaConnection,
+              setDataDogConnection,
+              setGrafanaConnection,
+              setNewRelicConnection,
+              setSentryConnection,
+              setPagerDutyConnection,
+              setCloudWatchConnection,
+              setUserFilesConnection,
             });
           }
         } catch {

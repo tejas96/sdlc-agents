@@ -7,6 +7,16 @@ import {
   JiraIcon,
   FigmaIcon,
   GitIcon,
+  PostmanIcon,
+  SwaggerIcon,
+  OpenApiIcon,
+  ApiSpecIcon,
+  PagerDutyIcon,
+  NewRelicIcon,
+  DataDogIcon,
+  SentryIcon,
+  GrafanaIcon,
+  FileIcon,
 } from '@/components/icons';
 
 import type {
@@ -14,7 +24,14 @@ import type {
   NotionPage,
   FigmaFile,
   AtlassianPage,
+  IncidentService,
 } from '@/types';
+
+interface ServiceData {
+  incident?: IncidentService | null;
+  logs?: Array<any>;
+  hasData: boolean;
+}
 
 interface AnalysisLoaderProps {
   repositories?: Array<{
@@ -26,9 +43,24 @@ interface AnalysisLoaderProps {
     html_url: string;
   } | null;
   jiraTickets?: Array<AtlassianIssue>;
+  jiraIncident?: IncidentService | null;
   notionPages?: Array<NotionPage>;
   confluencePages?: Array<AtlassianPage>;
   figmaPages?: Array<FigmaFile>;
+  apiSpecs?: Array<{
+    id: string;
+    name: string;
+    specType?: string;
+  }>;
+  pagerduty?: IncidentService | boolean;
+  newrelic?: ServiceData;
+  datadog?: ServiceData;
+  sentry?: ServiceData;
+  grafana?: Array<any> | boolean;
+  uploadedFiles?: Array<{
+    name: string;
+    uploadedAt: string;
+  }>;
   isComplete?: boolean;
 }
 
@@ -39,6 +71,14 @@ export function AnalysisLoader({
   confluencePages = [],
   figmaPages = [],
   jiraTickets = [],
+  apiSpecs = [],
+  jiraIncident,
+  pagerduty,
+  newrelic,
+  datadog,
+  sentry,
+  grafana,
+  uploadedFiles = [],
   isComplete = false,
 }: AnalysisLoaderProps) {
   const [rotation, setRotation] = useState(0);
@@ -96,6 +136,14 @@ export function AnalysisLoader({
     });
   });
 
+  // Add Jira Incident if present
+  if (jiraIncident) {
+    items.push({
+      content: <JiraIcon className='h-5 w-5' />,
+      label: jiraIncident.title || 'Jira Incident',
+    });
+  }
+
   // Add Notion if connected and has links
   selectedNotionPages.forEach(page => {
     items.push({
@@ -117,6 +165,116 @@ export function AnalysisLoader({
     items.push({
       content: <FigmaIcon className='h-5 w-5' />,
       label: page.name,
+    });
+  });
+
+  apiSpecs.forEach(spec => {
+    const getApiSpecIcon = (specType?: string) => {
+      switch (specType?.toLowerCase()) {
+        case 'swagger':
+          return <SwaggerIcon className='h-5 w-5' />;
+        case 'postman':
+          return <PostmanIcon className='h-5 w-5' />;
+        case 'openapi':
+          return <OpenApiIcon className='h-5 w-5' />;
+        default:
+          return <ApiSpecIcon className='h-5 w-5' />;
+      }
+    };
+
+    items.push({
+      content: getApiSpecIcon(spec.specType),
+      label: spec.name,
+    });
+  });
+
+  // Add PagerDuty if has incident data
+  if (pagerduty && typeof pagerduty === 'object' && 'title' in pagerduty) {
+    items.push({
+      content: <PagerDutyIcon className='h-5 w-5' />,
+      label: pagerduty.title || 'PagerDuty',
+    });
+  }
+
+  // Add New Relic if has data
+  if (newrelic?.hasData) {
+    const hasIncident = !!newrelic.incident;
+    const hasLogs = newrelic.logs && newrelic.logs.length > 0;
+
+    // Add incident item if present
+    if (hasIncident) {
+      items.push({
+        content: <NewRelicIcon className='h-5 w-5' />,
+        label: newrelic.incident?.title || 'New Relic Incident',
+      });
+    }
+
+    // Add logs item if present
+    if (hasLogs) {
+      const logCount = newrelic.logs?.length || 0;
+      const logLabel =
+        logCount > 1 ? `New Relic Logs (${logCount})` : 'New Relic Logs';
+      items.push({
+        content: <NewRelicIcon className='h-5 w-5' />,
+        label: logLabel,
+      });
+    }
+  }
+
+  // Add DataDog if has data
+  if (datadog?.hasData) {
+    const hasIncident = !!datadog.incident;
+    const hasLogs = datadog.logs && datadog.logs.length > 0;
+
+    // Add incident item if present
+    if (hasIncident) {
+      items.push({
+        content: <DataDogIcon className='h-5 w-5' />,
+        label: datadog.incident?.title || 'DataDog Incident',
+      });
+    }
+
+    // Add logs item if present
+    if (hasLogs) {
+      const logCount = datadog.logs?.length || 0;
+      const logLabel =
+        logCount > 1 ? `DataDog Logs (${logCount})` : 'DataDog Logs';
+      items.push({
+        content: <DataDogIcon className='h-5 w-5' />,
+        label: logLabel,
+      });
+    }
+  }
+
+  // Add Sentry if has data
+  if (sentry?.hasData) {
+    const hasIncident = !!sentry.incident;
+
+    // Add incident item if present
+    if (hasIncident) {
+      items.push({
+        content: <SentryIcon className='h-5 w-5' />,
+        label: sentry.incident?.title || 'Sentry Incident',
+      });
+    }
+  }
+
+  // Add Grafana if has logs
+  if (grafana && Array.isArray(grafana) && grafana.length > 0) {
+    const logCount = grafana.length;
+    const logLabel =
+      logCount > 1 ? `Grafana Logs (${logCount})` : 'Grafana Logs';
+    items.push({
+      content: <GrafanaIcon className='h-5 w-5' />,
+      label: logLabel,
+    });
+  }
+  // Add uploaded files
+  const selectedUploadedFiles = uploadedFiles.slice(0, 2);
+  selectedUploadedFiles.forEach(file => {
+    items.push({
+      content: <FileIcon className='h-5 w-5' />,
+      label: file.name,
     });
   });
 
@@ -186,7 +344,7 @@ export function AnalysisLoader({
                 >
                   <div className='flex items-center gap-1.5 rounded-full bg-white/95 px-3 py-1.5 shadow-lg shadow-white/10'>
                     {item.content}
-                    <span className='max-w-[100px] truncate text-sm font-medium text-gray-700'>
+                    <span className='max-w-[120px] truncate text-sm font-medium text-gray-700'>
                       {item.label}
                     </span>
                   </div>

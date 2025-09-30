@@ -2,12 +2,14 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { JiraIcon } from '@/components/icons';
-import { FileText, Settings, X } from 'lucide-react';
+import { FileText, Settings, X, Plus } from 'lucide-react';
 import { JiraTicketsModal } from './JiraTicketsModal';
+import { AddIncidentModal } from '@/components/shared/AddIncidentModal';
 import { integrationApi } from '@/lib/api/api';
 import type {
   AtlassianIssue,
-  DocumentType,
+  PRDBasedType,
+  IncidentBasedType,
   EnhancedAtlassianIssue,
 } from '@/types';
 import { useOAuth } from '@/hooks/useOAuth';
@@ -15,10 +17,11 @@ import { useUser } from '@/hooks/useUser';
 import { toast } from 'sonner';
 import { useProject } from '@/hooks/useProject';
 import { cn } from '@/lib/utils';
-import ConfirmModal from './ConfirmModal';
+import ConfirmDisconnectModal from './ConfirmDisconnectModal';
+import { formatDistanceToNow } from 'date-fns';
 
 interface JiraDocumentsProps {
-  type: DocumentType;
+  type: PRDBasedType | IncidentBasedType;
 }
 
 export function JiraDocuments({ type }: JiraDocumentsProps) {
@@ -27,12 +30,15 @@ export function JiraDocuments({ type }: JiraDocumentsProps) {
   const {
     setPrdjira,
     prdjira,
-    setDocsjira,
-    docsjira,
+    setIncidentjira,
+    incidentjira,
+    resetPrdjira,
+    resetIncidentjira,
     resetCachedJiraProjects,
     resetCachedJiraTickets,
   } = useProject();
   const [showModal, setShowModal] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
   const [isDisconnecting, setIsDisconnecting] = useState(false);
   const [showDisconnectModal, setShowDisconnectModal] = useState(false);
 
@@ -43,15 +49,14 @@ export function JiraDocuments({ type }: JiraDocumentsProps) {
       disconnectMessage:
         'Are you sure you want to disconnect Jira? This will remove all PRD tickets and their associated data. This action cannot be undone.',
     },
-    supporting_doc: {
-      title: 'Jira Tickets',
-      emptyText: 'No tickets selected.',
+    incident: {
+      title: 'Jira Incidents',
+      emptyText: 'No incident configured.',
       disconnectMessage:
-        'Are you sure you want to disconnect Jira? This will remove all tickets and their associated data. This action cannot be undone.',
+        'Are you sure you want to disconnect Jira? This will remove all incident data. This action cannot be undone.',
     },
   };
 
-  const currentData = type === 'prd' ? prdjira : docsjira;
   const { title, emptyText } = content[type];
 
   // Get issue type color
@@ -101,7 +106,8 @@ export function JiraDocuments({ type }: JiraDocumentsProps) {
 
       if (response.success) {
         resetAtlassianMCPConnection();
-        setPrdjira({ tickets: [], selectedTickets: [] });
+        resetPrdjira();
+        resetIncidentjira();
         resetCachedJiraProjects();
         resetCachedJiraTickets();
         toast.success('Jira disconnected successfully');
@@ -122,24 +128,48 @@ export function JiraDocuments({ type }: JiraDocumentsProps) {
     selectedTickets: EnhancedAtlassianIssue[],
     ticketIds: string[]
   ) => {
-    const setter = type === 'prd' ? setPrdjira : setDocsjira;
-    setter({ tickets: selectedTickets, selectedTickets: ticketIds });
+    if (type === 'prd') {
+      setPrdjira({ tickets: selectedTickets, selectedTickets: ticketIds });
+    }
+    setShowModal(false);
+  };
+
+  const handleConfirmSingle = (selectedTicket: EnhancedAtlassianIssue) => {
+    if (type === 'incident') {
+      // Transform AtlassianIssue to IncidentService format
+      const incidentData = {
+        id: selectedTicket.key, // Use ticket key as ID
+        title: selectedTicket.fields.summary,
+        type: selectedTicket.fields?.issuetype?.name || 'Unknown',
+        last_seen: selectedTicket.fields?.created || new Date().toISOString(),
+        link: `https://jira.com/browse/${selectedTicket.key}`,
+        projectId: selectedTicket.projectKey,
+        projectIds: [selectedTicket.projectKey],
+        projectName: selectedTicket.projectName,
+        projectNames: [selectedTicket.projectName],
+      };
+      setIncidentjira({ incident: incidentData });
+    }
     setShowModal(false);
   };
 
   const handleRemoveTicket = (ticketId: string) => {
-    const setter = type === 'prd' ? setPrdjira : setDocsjira;
-    const filteredTickets = currentData.tickets.filter(
-      ticket => ticket.id !== ticketId
-    );
-    const filteredSelectedTickets = currentData.selectedTickets.filter(
-      id => id !== ticketId
-    );
+    if (type === 'prd') {
+      const filteredTickets = prdjira.tickets.filter(
+        ticket => ticket.id !== ticketId
+      );
+      const filteredSelectedTickets = prdjira.selectedTickets.filter(
+        id => id !== ticketId
+      );
 
-    setter({
-      tickets: filteredTickets,
-      selectedTickets: filteredSelectedTickets,
-    });
+      setPrdjira({
+        tickets: filteredTickets,
+        selectedTickets: filteredSelectedTickets,
+      });
+    } else {
+      // For incidents, just clear the single incident
+      setIncidentjira({ incident: null });
+    }
   };
 
   const handleDisconnectClick = () => {
@@ -156,6 +186,17 @@ export function JiraDocuments({ type }: JiraDocumentsProps) {
           </div>
 
           <div className='flex items-center gap-2'>
+            {type === 'incident' && (
+              <Button
+                variant='outline'
+                size='sm'
+                onClick={() => setShowAddModal(true)}
+                className='gap-2 border-green-200 bg-green-50 text-green-700 hover:bg-green-100 hover:text-green-800'
+              >
+                <Plus className='h-4 w-4' />
+                Add Link
+              </Button>
+            )}
             <Button
               variant='outline'
               size='sm'
@@ -177,17 +218,22 @@ export function JiraDocuments({ type }: JiraDocumentsProps) {
         </div>
 
         <div>
-          {currentData.tickets.length === 0 ? (
+          {(
+            type === 'prd'
+              ? prdjira.tickets.length === 0
+              : !incidentjira.incident
+          ) ? (
             <div className='py-4 text-center'>
               <FileText className='text-muted-foreground mx-auto h-8 w-8' />
               <p className='text-muted-foreground mt-2 text-sm'>{emptyText}</p>
               <p className='text-muted-foreground mt-1 text-xs'>
-                Click &ldquo;Manage&rdquo; to select tickets.
+                Click &ldquo;Manage&rdquo; to{' '}
+                {type === 'incident' ? 'configure incident' : 'select tickets'}.
               </p>
             </div>
-          ) : (
-            <div className='max-h-[400px] overflow-y-auto'>
-              {currentData.tickets.map((ticket: AtlassianIssue) => (
+          ) : type === 'prd' ? (
+            <div className='max-h-80 min-h-0 flex-1 overflow-auto bg-white'>
+              {prdjira.tickets.map((ticket: AtlassianIssue) => (
                 <div
                   key={ticket.id}
                   className='bg-background relative border-b p-4'
@@ -300,6 +346,62 @@ export function JiraDocuments({ type }: JiraDocumentsProps) {
                 </div>
               ))}
             </div>
+          ) : (
+            // Incidents Layout - Single incident display similar to DataDog
+            <>
+              {incidentjira.incident && (
+                <div
+                  key={incidentjira.incident.id}
+                  className='group relative flex flex-col bg-white px-4 py-3'
+                >
+                  {/* Remove button */}
+                  <button
+                    onClick={e => {
+                      e.stopPropagation();
+                      handleRemoveTicket(incidentjira.incident!.id);
+                    }}
+                    className='absolute top-3 right-3 text-gray-400 hover:text-gray-600'
+                    title='Remove this incident'
+                  >
+                    <X className='h-4 w-4' />
+                  </button>
+
+                  {/* Title */}
+                  <h4 className='mb-2 pr-8 text-sm font-medium text-gray-900'>
+                    {incidentjira.incident.title}
+                  </h4>
+
+                  {/* Description */}
+                  <p className='mb-2 text-xs leading-relaxed text-gray-600'>
+                    Incident reference from Jira ticket system.
+                  </p>
+
+                  {/* Simple Badges */}
+                  <div className='flex flex-wrap items-center gap-2'>
+                    <Badge variant='outline' className='text-xs'>
+                      Project:{' '}
+                      {(incidentjira.incident as any).projectNames?.join(
+                        ', '
+                      ) || 'Unknown'}
+                    </Badge>
+                    <Badge variant='outline' className='text-xs'>
+                      Type: {incidentjira.incident.type}
+                    </Badge>
+                    <Badge variant='outline' className='text-xs'>
+                      Reported:{' '}
+                      {incidentjira.incident.last_seen
+                        ? formatDistanceToNow(
+                            new Date(incidentjira.incident.last_seen),
+                            {
+                              addSuffix: true,
+                            }
+                          )
+                        : 'Unknown'}
+                    </Badge>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -307,12 +409,22 @@ export function JiraDocuments({ type }: JiraDocumentsProps) {
       <JiraTicketsModal
         isOpen={showModal}
         onClose={() => setShowModal(false)}
-        onConfirm={handleConfirm}
+        onConfirm={type === 'prd' ? handleConfirm : undefined}
+        onConfirmSingle={type === 'incident' ? handleConfirmSingle : undefined}
         type={type}
+        mode={type === 'incident' ? 'single' : 'multi'}
+      />
+
+      {/* Add Custom Incident Modal */}
+      <AddIncidentModal
+        isOpen={showAddModal}
+        onClose={() => setShowAddModal(false)}
+        provider='jira'
+        icon={<JiraIcon className='h-5 w-5' />}
       />
 
       {/* Disconnect Confirmation Modal */}
-      <ConfirmModal
+      <ConfirmDisconnectModal
         open={showDisconnectModal}
         message={content[type]?.disconnectMessage}
         onClose={() => setShowDisconnectModal(false)}

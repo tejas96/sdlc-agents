@@ -10,6 +10,12 @@ import {
   ConfluenceIcon,
   NotionIcon,
   GitIcon,
+  PagerDutyIcon,
+  NewRelicIcon,
+  DataDogIcon,
+  SentryIcon,
+  GrafanaIcon,
+  FileIcon,
 } from '@/components/icons';
 import {
   DropdownMenu,
@@ -21,6 +27,7 @@ import {
   exportAllTestCasesAsZip,
   copyAllTestCasesAsJSON,
 } from '@/lib/utils/test-case-export';
+import { formatApiTestingData } from '@/lib/utils/api-testing-formatter';
 import { PublishJiraModal } from '../product-management/publish-jira-modal';
 import {
   copyRequirementsToClipboard,
@@ -52,7 +59,13 @@ interface ReportHeaderProps {
     jira?: boolean;
     confluence?: boolean;
     notion?: boolean;
+    pagerduty?: boolean;
+    newrelic?: boolean;
+    datadog?: boolean;
+    sentry?: boolean;
+    grafana?: boolean;
     github?: boolean;
+    files?: boolean;
   };
   append?: (message: any) => void;
 }
@@ -62,8 +75,11 @@ interface AgentConfig {
   showAnalysisScope: boolean;
   showRepositories: boolean;
   showRegenerate: boolean;
+  showCopy: boolean;
+  showExport: boolean;
   downloadFilePrefix: string;
   showRequirementsCount: boolean;
+  showExportActions: boolean; //default value of this is true
 }
 
 // Agent type configurations
@@ -74,7 +90,10 @@ const agentConfigs: Record<string, AgentConfig> = {
     showRequirementsCount: false,
     showRepositories: false,
     showRegenerate: true,
+    showCopy: true,
+    showExport: true,
     downloadFilePrefix: 'test-cases',
+    showExportActions: true,
   },
   code_analysis: {
     showEngine: true,
@@ -82,7 +101,10 @@ const agentConfigs: Record<string, AgentConfig> = {
     showRequirementsCount: false,
     showRepositories: true,
     showRegenerate: true,
+    showCopy: true,
+    showExport: true,
     downloadFilePrefix: 'code-analysis',
+    showExportActions: true,
   },
   code_reviewer: {
     showEngine: true,
@@ -90,7 +112,10 @@ const agentConfigs: Record<string, AgentConfig> = {
     showRequirementsCount: false,
     showRepositories: true,
     showRegenerate: true,
+    showCopy: false,
+    showExport: false,
     downloadFilePrefix: 'code-review',
+    showExportActions: true,
   },
   requirements_to_tickets: {
     showEngine: true,
@@ -98,7 +123,32 @@ const agentConfigs: Record<string, AgentConfig> = {
     showRequirementsCount: true,
     showRepositories: false,
     showRegenerate: true,
+    showCopy: true,
+    showExport: true,
     downloadFilePrefix: 'requirements',
+    showExportActions: true,
+  },
+  api_testing_suite: {
+    showEngine: true,
+    showAnalysisScope: false,
+    showRequirementsCount: false,
+    showRepositories: false,
+    showRegenerate: true,
+    showCopy: true,
+    showExport: false,
+    downloadFilePrefix: 'api-test-suite',
+    showExportActions: false,
+  },
+  root_cause_analysis: {
+    showEngine: true,
+    showAnalysisScope: true,
+    showRequirementsCount: false,
+    showRepositories: true,
+    showRegenerate: true,
+    showCopy: false,
+    showExport: false,
+    downloadFilePrefix: 'root-cause-analysis',
+    showExportActions: false,
   },
 };
 
@@ -202,6 +252,13 @@ export function ReportHeader({
           copyRequirementsToClipboard(formatRequirementsData(data) ?? []);
         }
         break;
+      case 'api_testing_suite':
+        if (data) {
+          const formattedData = formatApiTestingData(data);
+          const jsonContent = JSON.stringify(formattedData, null, 2);
+          navigator.clipboard.writeText(jsonContent);
+        }
+        break;
     }
 
     setCopied(true);
@@ -209,11 +266,11 @@ export function ReportHeader({
   };
 
   const handleDownloadAllFiles = async () => {
-    if (agentType === 'test_case_generation' && data) {
-      await exportAllTestCasesAsZip(data);
-    } else if (agentType === 'code_analysis' && createdFiles) {
-      createdFiles.forEach((file, index) => {
-        setTimeout(() => {
+    try {
+      if (agentType === 'test_case_generation' && data) {
+        await exportAllTestCasesAsZip(data);
+      } else if (agentType === 'code_analysis' && createdFiles) {
+        createdFiles.forEach(file => {
           try {
             const blob = new Blob([file.content], { type: 'text/plain' });
             const url = URL.createObjectURL(blob);
@@ -227,8 +284,29 @@ export function ReportHeader({
           } catch {
             toast.error('Error downloading file');
           }
-        }, index * 120);
-      });
+        });
+      } else if (agentType === 'requirements_to_tickets' && data) {
+        // Export requirements as JSON file
+        const requirementsData = formatRequirementsData(data);
+        if (requirementsData) {
+          const blob = new Blob([JSON.stringify(requirementsData, null, 2)], {
+            type: 'application/json',
+          });
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = `requirements-breakdown-${currentDate.replace(/\//g, '-')}.json`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          URL.revokeObjectURL(url);
+        }
+      } else {
+        toast.error('No data available to export');
+      }
+    } catch (error) {
+      toast.error('Error exporting data');
+      console.error('Export error:', error);
     }
   };
 
@@ -267,39 +345,44 @@ export function ReportHeader({
 
         {/* Right side - Actions */}
         <div className='flex items-center gap-2'>
-          <Button
-            variant='outline'
-            size='sm'
-            className={`flex items-center gap-2 ${
-              copied
-                ? 'border-green-300 bg-green-50 text-green-700 hover:bg-green-50'
-                : 'border-slate-300 bg-slate-100 text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-            }`}
-            onClick={handleCopy}
-            aria-live='polite'
-            title='Copy'
-          >
-            {copied ? (
-              <>
-                <Check className='h-4 w-4' />
-                <span className='hidden sm:inline'>Copied!</span>
-              </>
-            ) : (
-              <Copy className='h-4 w-4' />
-            )}
-          </Button>
-          {agentType === 'code_reviewer' ? (
+          {config.showCopy && (
+            <Button
+              variant='outline'
+              size='sm'
+              className={`flex items-center gap-2 ${
+                copied
+                  ? 'border-green-300 bg-green-50 text-green-700 hover:bg-green-50'
+                  : 'border-slate-300 bg-slate-100 text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+              }`}
+              onClick={handleCopy}
+              aria-live='polite'
+              title='Copy'
+            >
+              {copied ? (
+                <>
+                  <Check className='h-4 w-4' />
+                  <span className='hidden sm:inline'>Copied!</span>
+                </>
+              ) : (
+                <Copy className='h-4 w-4' />
+              )}
+            </Button>
+          )}
+          {config.showExport && (
             <Button
               variant='outline'
               size='sm'
               className='flex items-center gap-2 border-slate-300 bg-slate-100 text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-              onClick={handlePublishToGitHub}
-              aria-label='Publish to GitHub'
+              onClick={handleDownloadAllFiles}
+              title='Export Files'
             >
-              <GitIcon className='h-4 w-4' />
-              <span className='hidden sm:inline'>Publish to GitHub</span>
+              <Download className='h-4 w-4' />
+              <span className='hidden sm:inline'>Export</span>
             </Button>
-          ) : (
+          )}
+          {(config.showExport ||
+            agentType === 'code_reviewer' ||
+            agentType === 'requirements_to_tickets') && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
@@ -313,23 +396,26 @@ export function ReportHeader({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align='end'>
-                {agentType === 'requirements_to_tickets' ? (
-                  <>
-                    <DropdownMenuItem
-                      onClick={handlePublishToJira}
-                      disabled={!atlassianMCPConnection?.isConnected}
-                    >
-                      <JiraIcon className='mr-2 h-4 w-4' />
-                      Publish to Jira
-                    </DropdownMenuItem>
-                  </>
-                ) : (
-                  <>
-                    <DropdownMenuItem onClick={handleDownloadAllFiles}>
-                      <Download className='mr-2 h-4 w-4' />
-                      Download All Files
-                    </DropdownMenuItem>
-                  </>
+                {agentType === 'code_reviewer' && (
+                  <DropdownMenuItem onClick={handlePublishToGitHub}>
+                    <GitIcon className='mr-2 h-4 w-4' />
+                    Publish to GitHub
+                  </DropdownMenuItem>
+                )}
+                {agentType === 'requirements_to_tickets' && (
+                  <DropdownMenuItem
+                    onClick={handlePublishToJira}
+                    disabled={!atlassianMCPConnection?.isConnected}
+                  >
+                    <JiraIcon className='mr-2 h-4 w-4' />
+                    Publish to Jira
+                  </DropdownMenuItem>
+                )}
+                {config.showExport && (
+                  <DropdownMenuItem onClick={handleDownloadAllFiles}>
+                    <Download className='mr-2 h-4 w-4' />
+                    Download Files
+                  </DropdownMenuItem>
                 )}
               </DropdownMenuContent>
             </DropdownMenu>
@@ -396,7 +482,13 @@ export function ReportHeader({
           {!config.showRepositories &&
             !usedServices.jira &&
             !usedServices.confluence &&
-            !usedServices.notion && (
+            !usedServices.notion &&
+            !usedServices.pagerduty &&
+            !usedServices.newrelic &&
+            !usedServices.datadog &&
+            !usedServices.sentry &&
+            !usedServices.grafana &&
+            !usedServices.files && (
               <div className='flex flex-col text-right'>
                 <div className='text-sm font-medium text-gray-700'>
                   Generated
@@ -409,10 +501,16 @@ export function ReportHeader({
         </div>
       )}
 
-      {/* Data Sources row - Jira, Confluence, Notion */}
+      {/* Data Sources row - All Services */}
       {(usedServices.jira ||
         usedServices.confluence ||
-        usedServices.notion) && (
+        usedServices.notion ||
+        usedServices.pagerduty ||
+        usedServices.newrelic ||
+        usedServices.datadog ||
+        usedServices.sentry ||
+        usedServices.grafana ||
+        usedServices.files) && (
         <div className='mt-3 flex items-center justify-between'>
           <div className='flex items-center gap-2'>
             {usedServices.jira && (
@@ -440,6 +538,62 @@ export function ReportHeader({
               >
                 <NotionIcon className='h-3.5 w-3.5' />
                 <span>Notion</span>
+              </Badge>
+            )}
+            {usedServices.pagerduty && (
+              <Badge
+                variant='secondary'
+                className='flex items-center gap-1.5 text-xs'
+              >
+                <PagerDutyIcon className='h-3.5 w-3.5' />
+                <span>PagerDuty</span>
+              </Badge>
+            )}
+            {usedServices.newrelic && (
+              <Badge
+                variant='secondary'
+                className='flex items-center gap-1.5 text-xs'
+              >
+                <NewRelicIcon className='h-3.5 w-3.5' />
+                <span>New Relic</span>
+              </Badge>
+            )}
+            {usedServices.datadog && (
+              <Badge
+                variant='secondary'
+                className='flex items-center gap-1.5 text-xs'
+              >
+                <DataDogIcon className='h-3.5 w-3.5' />
+                <span>DataDog</span>
+              </Badge>
+            )}
+            {usedServices.sentry && (
+              <Badge
+                variant='secondary'
+                className='flex items-center gap-1.5 text-xs'
+              >
+                <SentryIcon className='h-3.5 w-3.5' />
+                <span>Sentry</span>
+              </Badge>
+            )}
+            {usedServices.grafana && (
+              <Badge
+                variant='secondary'
+                className='flex items-center gap-1.5 text-xs'
+              >
+                <GrafanaIcon className='h-3.5 w-3.5' />
+                <span>Grafana</span>
+                <FileIcon className='h-3.5 w-3.5' />
+                <span>Files</span>
+              </Badge>
+            )}
+            {usedServices.files && (
+              <Badge
+                variant='secondary'
+                className='flex items-center gap-1.5 text-xs'
+              >
+                <FileIcon className='h-3.5 w-3.5' />
+                <span>Files</span>
               </Badge>
             )}
           </div>
@@ -533,6 +687,12 @@ export function ReportHeader({
         !usedServices.jira &&
         !usedServices.confluence &&
         !usedServices.notion &&
+        !usedServices.pagerduty &&
+        !usedServices.newrelic &&
+        !usedServices.datadog &&
+        !usedServices.sentry &&
+        !usedServices.grafana &&
+        !usedServices.files &&
         (!config.showRepositories || selectedRepos.length === 0) && (
           <div className='mt-4 flex justify-end'>
             <div className='flex flex-col text-right'>

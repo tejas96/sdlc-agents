@@ -16,7 +16,7 @@ interface ModalProps {
   isLoading?: boolean;
 }
 
-const ConfirmModal: React.FC<ModalProps> = ({
+const ConfirmDisconnectModal: React.FC<ModalProps> = ({
   open,
   message,
   onClose,
@@ -47,4 +47,4 @@ const ConfirmModal: React.FC<ModalProps> = ({
   );
 };
 
-export default ConfirmModal;
+export default ConfirmDisconnectModal;

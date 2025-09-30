@@ -23,9 +23,6 @@ export default function CodeUnderstanding() {
 
   return (
     <div className='space-y-8'>
-      <div className='mb-3 flex items-center gap-3'>
-        <h2 className='text-xl font-bold'>Code Understanding Agent</h2>
-      </div>
       <p className='text-muted-foreground mb-4 text-sm'>
         Your AI companion to visualize and document complex codebases.
       </p>

@@ -30,6 +30,10 @@ export const useGitHub = (): UseGitHubResult => {
       selectedBranch: repo.default_branch,
       updatedAt: repo.updated_at,
       ownerName: repo.owner?.login || '',
+      default_branch: repo.default_branch,
+      language: repo.language || undefined,
+      owner: repo.owner?.login || '',
+      updated_at: repo.updated_at,
     }));
   };
 

@@ -46,6 +46,7 @@ export interface AvailableIntegrations {
   confluence: boolean;
   jira: boolean;
   figma: boolean;
+  files: boolean;
 }
 
 export interface ConnectionState {
@@ -63,4 +64,41 @@ export interface IntegrationSetters {
   setAtlassianMCPConnection: (state: ConnectionState) => void;
   setGitHubConnection: (state: ConnectionState) => void;
   setFigmaConnection: (state: ConnectionState) => void;
+}
+
+// ========================================
+// SERVICE TYPES
+// ========================================
+
+export interface LoggingService {
+  id: string;
+  name: string;
+  description: string;
+  last_updated: string;
+  dateRange?: {
+    from?: string;
+    to?: string;
+  };
+}
+
+export interface IncidentService {
+  id: string;
+  title: string;
+  type: string;
+  link: string;
+  last_seen: string;
+  agent_payload?: {
+    [key: string]: any;
+  };
+}
+
+export interface IncidentProject {
+  id: string;
+  name: string;
+}
+
+export interface Environment {
+  id: string;
+  name: string;
+  description: string;
 }

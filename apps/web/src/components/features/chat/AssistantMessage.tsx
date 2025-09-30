@@ -143,6 +143,12 @@ export const AssistantMessage: React.FC<AssistantMessageProps> = ({
           toolName === 'mcp__atlassian__getJiraIssue' ||
           toolName === 'mcp__atlassian__createJiraIssue' ||
           toolName === 'mcp__notion__API-retrieve-a-page' ||
+          toolName === 'mcp__notion__API-post-search' ||
+          toolName === 'mcp__datadog__get-monitor' ||
+          toolName === 'mcp__datadog__search-logs' ||
+          toolName === 'mcp__sentry__get_issue_details' ||
+          toolName === 'mcp__sentry__find_organizations' ||
+          toolName === 'mcp__sentry__search_events' ||
           toolName === 'glob_files' ||
           toolName === 'execute_command' ||
           toolName === 'list_directory' ||

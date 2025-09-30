@@ -5,15 +5,19 @@ import { ConfluenceIcon } from '@/components/icons';
 import { Settings, FileText, X } from 'lucide-react';
 import { ConfluencePagesModal } from '@/components/shared/ConfluencePagesModal';
 import { integrationApi } from '@/lib/api/api';
-import type { EnhancedAtlassianPage, DocumentType } from '@/types';
+import type {
+  EnhancedAtlassianPage,
+  SupportingDocType,
+  PRDBasedType,
+} from '@/types';
 import { useOAuth } from '@/hooks/useOAuth';
 import { useUser } from '@/hooks/useUser';
 import { toast } from 'sonner';
 import { useProject } from '@/hooks/useProject';
-import ConfirmModal from './ConfirmModal';
+import ConfirmDisconnectModal from './ConfirmDisconnectModal';
 
 interface ConfluenceDocumentsProps {
-  type: DocumentType;
+  type: SupportingDocType | PRDBasedType;
 }
 
 export function ConfluenceDocuments({ type }: ConfluenceDocumentsProps) {
@@ -26,6 +30,8 @@ export function ConfluenceDocuments({ type }: ConfluenceDocumentsProps) {
     docsconfluence,
     resetCachedConfluenceSpaces,
     resetCachedConfluencePages,
+    resetPrdconfluence,
+    resetDocsconfluence,
   } = useProject();
   const [showModal, setShowModal] = useState(false);
   const [isDisconnecting, setIsDisconnecting] = useState(false);
@@ -61,8 +67,8 @@ export function ConfluenceDocuments({ type }: ConfluenceDocumentsProps) {
 
       if (response.success) {
         resetAtlassianMCPConnection();
-        setPrdconfluence({ pages: [], selectedPages: [] });
-        setDocsconfluence({ pages: [], selectedPages: [] });
+        resetPrdconfluence();
+        resetDocsconfluence();
         resetCachedConfluenceSpaces();
         resetCachedConfluencePages();
         toast.success('Confluence disconnected successfully');
@@ -183,7 +189,7 @@ export function ConfluenceDocuments({ type }: ConfluenceDocumentsProps) {
       />
 
       {/* Disconnect Confirmation Modal */}
-      <ConfirmModal
+      <ConfirmDisconnectModal
         open={showDisconnectModal}
         message={content[type]?.disconnectMessage}
         onClose={() => setShowDisconnectModal(false)}

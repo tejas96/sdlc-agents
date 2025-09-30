@@ -10,10 +10,13 @@ const routeTitleMap: Record<string, string> = {
   '/dashboard': 'Dashboard',
   '/development': 'Your AI Agents for the Development Journey',
   '/development/code-reviewer-agent': 'Code Reviewer Configuration Panel',
+  '/development/root-cause-analysis': 'Root Cause Analysis Configuration Panel',
   '/development/code-understanding':
     'Documentation & Knowledge Configuration Panel',
   '/quality-assurance': 'Your AI Agents for the Quality Assurance Journey',
   '/quality-assurance/test-gen-ai-agent': 'TestGen AI Configuration Panel',
+  '/quality-assurance/api-testing-suite-agent':
+    'API Testing Suite Agent Configuration Panel',
   '/quality-assurance/test-execution-agent':
     'Test Execution Configuration Panel',
   '/quality-assurance/defect-management-agent':

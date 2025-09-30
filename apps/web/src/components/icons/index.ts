@@ -22,5 +22,16 @@ export { SlackIcon } from './SlackIcon';
 export { ServiceNowIcon } from './ServiceNowIcon';
 export { GoogleDriveIcon } from './GoogleDriveIcon';
 export { FigmaIcon } from './FigmaIcon';
-
+export { ApiSpecIcon } from './ApiSpecIcon';
+export { PostmanIcon } from './PostmanIcon';
+export { SwaggerIcon } from './SwaggerIcon';
+export { OpenApiIcon } from './OpenApiIcon';
+export { FileUploadIcon } from './FileUploadIcon';
+export { PagerDutyIcon } from './PagerDutyIcon';
+export { SentryIcon } from './SentryIcon';
+export { NewRelicIcon } from './NewRelicIcon';
+export { DataDogIcon } from './DataDogIcon';
+export { GrafanaIcon } from './GrafanaIcon';
+export { CloudWatchIcon } from './CloudWatchIcon';
+export { LogsIcon } from './LogsIcon';
 export type { IconProps } from './types';

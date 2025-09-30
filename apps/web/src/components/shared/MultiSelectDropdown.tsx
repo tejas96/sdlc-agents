@@ -24,6 +24,7 @@ interface MultiSelectDropdownProps {
   className?: string;
   disabled?: boolean;
   loading?: boolean;
+  onSearchChange?: (search: string) => void;
 }
 
 export function MultiSelectDropdown({
@@ -36,6 +37,7 @@ export function MultiSelectDropdown({
   className,
   disabled = false,
   loading = false,
+  onSearchChange,
 }: MultiSelectDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -47,8 +49,9 @@ export function MultiSelectDropdown({
     setIsOpen(false);
     setIsFocused(false);
     setSearchQuery('');
+    onSearchChange?.('');
     inputRef.current?.blur();
-  }, []);
+  }, [onSearchChange]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -184,12 +187,16 @@ export function MultiSelectDropdown({
           ref={inputRef}
           type='text'
           value={getDisplayText()}
-          onChange={e => setSearchQuery(e.target.value)}
+          onChange={e => {
+            const value = e.target.value;
+            setSearchQuery(value);
+            onSearchChange?.(value);
+          }}
           onFocus={handleFocus}
           onBlur={handleBlur}
           onKeyDown={handleKeyDown}
           placeholder={getPlaceholderText()}
-          disabled={disabled || loading}
+          disabled={disabled}
           className={cn(
             'placeholder:text-muted-foreground flex-1 bg-transparent outline-none',
             'cursor-text',

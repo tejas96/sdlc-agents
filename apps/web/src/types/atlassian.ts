@@ -1,4 +1,8 @@
-import type { DocumentType } from './common';
+import type {
+  SupportingDocType,
+  PRDBasedType,
+  IncidentBasedType,
+} from './common';
 // ========================================
 // ATLASSIAN TYPES
 // ========================================
@@ -104,7 +108,19 @@ export interface ConfluencePagesModalProps {
     selectedPages: EnhancedAtlassianPage[],
     pageIds: string[]
   ) => void;
-  type: DocumentType;
+  type: SupportingDocType | PRDBasedType;
+}
+
+export interface JiraTicketsModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm?: (
+    selectedTickets: EnhancedAtlassianIssue[],
+    ticketIds: string[]
+  ) => void;
+  onConfirmSingle?: (selectedTicket: EnhancedAtlassianIssue) => void;
+  type: PRDBasedType | IncidentBasedType;
+  mode?: 'multi' | 'single';
 }
 
 // Enhanced versions with selection state
@@ -118,4 +134,28 @@ export interface EnhancedAtlassianPage extends AtlassianPage {
   selected?: boolean;
   spaceKey: string;
   spaceName: string;
+}
+
+export interface ConfluenceSpaceSelectorProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: (spaceKey: string) => void;
+  title?: string;
+  description?: string;
+}
+
+export interface JiraProjectSelectorProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: (projectKey: string) => void;
+  title?: string;
+  description?: string;
+}
+
+export interface JiraTicketSelectorProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: (issueKey: string) => void;
+  title?: string;
+  description?: string;
 }

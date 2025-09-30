@@ -54,7 +54,7 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
         </h1>
 
         {/* Subheading */}
-        <p className='text-muted-foreground mx-auto max-w-xl text-sm'>
+        <p className='text-muted-foreground font-outfit mx-auto text-sm whitespace-nowrap'>
           {subheading}
         </p>
 

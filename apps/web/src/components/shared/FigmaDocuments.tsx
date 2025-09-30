@@ -11,38 +11,31 @@ import { useUser } from '@/hooks/useUser';
 import { useProject } from '@/hooks/useProject';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import type { DocumentType, FigmaFile } from '@/types';
+import type { SupportingDocType, FigmaFile } from '@/types';
+import ConfirmDisconnectModal from './ConfirmDisconnectModal';
 
 interface FigmaDocumentsProps {
-  type: DocumentType;
+  type: SupportingDocType;
 }
 
 export function FigmaDocuments({ type }: FigmaDocumentsProps) {
   const { resetFigmaConnection, figmaConnection } = useOAuth();
   const { accessToken } = useUser();
-  const {
-    setPrdfigma,
-    setDocsfigma,
-    prdfigma,
-    docsfigma,
-    resetPrdfigma,
-    resetDocsfigma,
-  } = useProject();
+  const { setDocsfigma, docsfigma, resetDocsfigma } = useProject();
   const [showModal, setShowModal] = useState(false);
   const [isDisconnecting, setIsDisconnecting] = useState(false);
+  const [showDisconnectModal, setShowDisconnectModal] = useState(false);
 
   const content = {
-    prd: {
-      title: 'Figma PRD Documents',
-      emptyText: 'No Figma files added.',
-    },
     supporting_doc: {
       title: 'Figma Support Documents',
       emptyText: 'No Figma files added.',
+      disconnectMessage:
+        'Are you sure you want to disconnect Figma? This will remove all files and their associated data. This action cannot be undone.',
     },
   };
 
-  const currentData = type === 'prd' ? prdfigma : docsfigma;
+  const currentData = docsfigma;
   const { title, emptyText } = content[type];
 
   // Get role color
@@ -95,9 +88,9 @@ export function FigmaDocuments({ type }: FigmaDocumentsProps) {
 
       if (response.success) {
         resetFigmaConnection();
-        resetPrdfigma();
         resetDocsfigma();
         toast.success('Figma disconnected successfully');
+        setShowDisconnectModal(false);
       } else {
         toast.error(
           `Failed to disconnect: ${response.error || 'Unknown error'}`
@@ -111,7 +104,7 @@ export function FigmaDocuments({ type }: FigmaDocumentsProps) {
   };
 
   const handleAddFile = (newFile: FigmaFile) => {
-    const setter = type === 'prd' ? setPrdfigma : setDocsfigma;
+    const setter = setDocsfigma;
     setter({
       files: [...currentData.files, newFile],
       selectedFiles: [...currentData.selectedFiles, newFile.url],
@@ -120,7 +113,7 @@ export function FigmaDocuments({ type }: FigmaDocumentsProps) {
   };
 
   const handleRemoveFile = (fileUrl: string) => {
-    const setter = type === 'prd' ? setPrdfigma : setDocsfigma;
+    const setter = setDocsfigma;
     const filteredFiles = currentData.files.filter(
       file => file.url !== fileUrl
     );
@@ -132,6 +125,10 @@ export function FigmaDocuments({ type }: FigmaDocumentsProps) {
       files: filteredFiles,
       selectedFiles: filteredSelectedFiles,
     });
+  };
+
+  const handleDisconnectClick = () => {
+    setShowDisconnectModal(true);
   };
 
   return (
@@ -157,8 +154,7 @@ export function FigmaDocuments({ type }: FigmaDocumentsProps) {
               variant='outline'
               className='border-red-700 bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-900'
               size='sm'
-              onClick={handleDisconnect}
-              disabled={isDisconnecting}
+              onClick={handleDisconnectClick}
             >
               {isDisconnecting ? (
                 <Loader2 className='h-4 w-4 animate-spin' />
@@ -279,6 +275,15 @@ export function FigmaDocuments({ type }: FigmaDocumentsProps) {
         onConfirm={handleAddFile}
         type={type}
         existingFiles={currentData.files}
+      />
+
+      {/* Disconnect Confirmation Modal */}
+      <ConfirmDisconnectModal
+        open={showDisconnectModal}
+        message={content[type]?.disconnectMessage}
+        onClose={() => setShowDisconnectModal(false)}
+        onConfirm={handleDisconnect}
+        isLoading={isDisconnecting}
       />
     </>
   );

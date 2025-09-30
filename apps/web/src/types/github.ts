@@ -29,7 +29,9 @@ export interface Repository {
 // Simplified Repository for UI state management
 export interface RepositoryState {
   id: string;
+  name: string;
   fullName: string;
+  description: string;
   url: string;
   private: boolean;
   selected: boolean;
@@ -37,6 +39,10 @@ export interface RepositoryState {
   selectedBranch: string;
   updatedAt: string;
   ownerName: string;
+  default_branch?: string;
+  language?: string;
+  owner?: string;
+  updated_at?: string;
 }
 
 export interface GitHubBranch {
@@ -72,4 +78,12 @@ export interface UseGitHubResult {
   fetchBranches: (owner: string, repo: string) => Promise<GitHubBranch[]>;
   updateRepositoryBranches: (repoId: string, branches: string[]) => void;
   clearData: () => void;
+}
+
+export interface GithubRepoSelectorProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: (repoName: string, branchName: string) => void;
+  title?: string;
+  description?: string;
 }

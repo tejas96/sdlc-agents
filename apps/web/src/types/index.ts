@@ -18,3 +18,5 @@ export * from './hooks';
 export * from './ui';
 export * from './chat';
 export * from './knowledge-graph';
+export * from './agent-rca';
+export * from './files';

@@ -5,15 +5,15 @@ import { NotionIcon } from '@/components/icons';
 import { Settings, FileText, X } from 'lucide-react';
 import { NotionPagesModal } from '@/components/shared/NotionPagesModal';
 import { integrationApi } from '@/lib/api/api';
-import type { DocumentType, NotionPage } from '@/types';
+import type { SupportingDocType, PRDBasedType, NotionPage } from '@/types';
 import { useOAuth } from '@/hooks/useOAuth';
 import { useUser } from '@/hooks/useUser';
 import { toast } from 'sonner';
 import { useProject } from '@/hooks/useProject';
-import ConfirmModal from './ConfirmModal';
+import ConfirmDisconnectModal from './ConfirmDisconnectModal';
 
 interface NotionDocumentsProps {
-  type: DocumentType;
+  type: SupportingDocType | PRDBasedType;
 }
 
 const getNotionPageTitle = (page: NotionPage): string => {
@@ -189,7 +189,7 @@ export function NotionDocuments({ type }: NotionDocumentsProps) {
       />
 
       {/* Disconnect Confirmation Modal */}
-      <ConfirmModal
+      <ConfirmDisconnectModal
         open={showDisconnectModal}
         message={content[type]?.disconnectMessage}
         onClose={() => setShowDisconnectModal(false)}

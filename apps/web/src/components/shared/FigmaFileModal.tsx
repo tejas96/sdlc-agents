@@ -16,13 +16,13 @@ import { FigmaIcon } from '@/components/icons';
 import { toast } from 'sonner';
 import { useUser } from '@/hooks/useUser';
 import { useFigma } from '@/hooks/useFigma';
-import type { DocumentType, FigmaFile } from '@/types';
+import type { SupportingDocType, FigmaFile } from '@/types';
 
 interface FigmaFileModalProps {
   isOpen: boolean;
   onClose: () => void;
   onConfirm: (file: FigmaFile) => void;
-  type: DocumentType;
+  type: SupportingDocType;
   existingFiles: FigmaFile[];
 }
 

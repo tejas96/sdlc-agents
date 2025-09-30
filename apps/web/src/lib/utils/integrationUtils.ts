@@ -1,10 +1,23 @@
-type DocumentType = 'prd' | 'supporting_doc';
+import type {
+  SupportingDocType,
+  PRDBasedType,
+  LogBasedType,
+  IncidentBasedType,
+} from '@/types';
 
+// Single interface for all integrations with cleaner type-specific methods
 export interface AvailableIntegrations {
-  notion: boolean;
-  confluence: boolean;
-  jira: boolean;
-  figma: boolean;
+  notion?: boolean;
+  confluence?: boolean;
+  jira?: boolean;
+  figma?: boolean;
+  datadog?: boolean;
+  grafana?: boolean;
+  newrelic?: boolean;
+  cloudwatch?: boolean;
+  sentry?: boolean;
+  pagerduty?: boolean;
+  files?: boolean;
 }
 
 // Integration data structure from API
@@ -26,6 +39,13 @@ interface IntegrationSetters {
   setAtlassianMCPConnection: (state: ConnectionState) => void;
   setGitHubConnection: (state: ConnectionState) => void;
   setFigmaConnection: (state: ConnectionState) => void;
+  setDataDogConnection: (state: ConnectionState) => void;
+  setGrafanaConnection: (state: ConnectionState) => void;
+  setNewRelicConnection: (state: ConnectionState) => void;
+  setCloudWatchConnection: (state: ConnectionState) => void;
+  setSentryConnection: (state: ConnectionState) => void;
+  setPagerDutyConnection: (state: ConnectionState) => void;
+  setUserFilesConnection: (state: ConnectionState) => void;
 }
 
 /**
@@ -33,7 +53,11 @@ interface IntegrationSetters {
  */
 export function getAvailableIntegrations(
   agentType: string = 'default',
-  documentType: DocumentType
+  documentType:
+    | SupportingDocType
+    | PRDBasedType
+    | LogBasedType
+    | IncidentBasedType
 ): AvailableIntegrations {
   switch (agentType) {
     case 'test_case_generation':
@@ -43,17 +67,16 @@ export function getAvailableIntegrations(
             notion: true,
             confluence: true,
             jira: true,
-            figma: false,
+            files: true,
           };
         case 'supporting_doc':
           return {
             notion: true,
             confluence: true,
-            jira: false,
-            figma: false,
+            files: true,
           };
         default:
-          return { notion: true, confluence: true, jira: true, figma: true };
+          return {};
       }
 
     case 'code_analysis':
@@ -62,11 +85,11 @@ export function getAvailableIntegrations(
           return {
             notion: true,
             confluence: true,
-            jira: false,
-            figma: false,
+            files: true,
           };
+
         default:
-          return { notion: true, confluence: true, jira: true, figma: false };
+          return {};
       }
 
     case 'requirements_to_tickets':
@@ -76,26 +99,63 @@ export function getAvailableIntegrations(
             notion: true,
             confluence: true,
             jira: true,
-            figma: false,
+            files: true,
           };
         case 'supporting_doc':
           return {
             notion: true,
             confluence: true,
-            jira: false,
-            figma: false,
+            files: true,
           };
         default:
-          return { notion: true, confluence: true, jira: true, figma: false };
+          return {};
+      }
+
+    case 'root_cause_analysis':
+      switch (documentType) {
+        case 'supporting_doc':
+          return {
+            notion: true,
+            confluence: true,
+            files: true,
+          };
+        case 'incident':
+          return {
+            jira: true,
+            pagerduty: true,
+            sentry: true,
+            newrelic: true,
+            datadog: true,
+          };
+        case 'logging':
+          return {
+            datadog: true,
+            cloudwatch: true,
+            grafana: true,
+          };
+        default:
+          return {};
       }
     case 'code_reviewer':
+      switch (documentType) {
+        case 'supporting_doc':
+          return {
+            notion: true,
+            confluence: true,
+            files: true,
+          };
+        default:
+          return {};
+      }
+    case 'api_testing_suite':
       switch (documentType) {
         case 'prd':
           return {
             notion: false,
             confluence: false,
-            jira: false,
+            jira: true,
             figma: false,
+            files: true,
           };
         case 'supporting_doc':
           return {
@@ -103,19 +163,20 @@ export function getAvailableIntegrations(
             confluence: true,
             jira: false,
             figma: false,
+            files: true,
           };
         default:
-          return { notion: true, confluence: true, jira: true, figma: false };
+          return {
+            notion: true,
+            confluence: true,
+            jira: true,
+            figma: false,
+            files: true,
+          };
       }
 
     default:
-      // Show all integrations for unknown agent types
-      return {
-        notion: true,
-        confluence: true,
-        jira: true,
-        figma: true,
-      };
+      return {};
   }
 }
 
@@ -148,6 +209,27 @@ export function processIntegrations(
         break;
       case 'figma':
         setters.setFigmaConnection(connectionState);
+        break;
+      case 'datadog':
+        setters.setDataDogConnection(connectionState);
+        break;
+      case 'grafana':
+        setters.setGrafanaConnection(connectionState);
+        break;
+      case 'new_relic':
+        setters.setNewRelicConnection(connectionState);
+        break;
+      case 'cloudwatch':
+        setters.setCloudWatchConnection(connectionState);
+        break;
+      case 'sentry':
+        setters.setSentryConnection(connectionState);
+        break;
+      case 'pagerduty':
+        setters.setPagerDutyConnection(connectionState);
+        break;
+      case 'cloudwatch':
+        setters.setCloudWatchConnection(connectionState);
         break;
       default:
         // Handle unknown integration types gracefully
