@@ -6,7 +6,7 @@ export const setSessionId = (sessionId: string): void => {
   if (typeof window === 'undefined') {
     return;
   }
-  sessionStorage.setItem('optima-session-id', sessionId);
+  sessionStorage.setItem('sdlc-agents-session-id', sessionId);
 };
 
 export const createNewSessionId = (): string => {

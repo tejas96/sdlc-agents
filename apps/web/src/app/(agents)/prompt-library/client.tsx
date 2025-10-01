@@ -69,7 +69,7 @@ export default function PromptLibraryClient() {
               </Button>
             </div>
             <p className='text-muted-foreground'>
-              Use these prebuilt prompts to get the most out of your Optima AI
+              Use these prebuilt prompts to get the most out of your SDLC Agents
               development tools.
             </p>
           </div>

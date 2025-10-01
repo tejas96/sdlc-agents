@@ -21,7 +21,7 @@ class WorkspaceService:
     """
 
     def __init__(self, *, root_dir: str | None = None) -> None:
-        self.root_dir = root_dir or os.path.join(tempfile.gettempdir(), "optima")
+        self.root_dir = root_dir or os.path.join(tempfile.gettempdir(), "sdlc-agents")
 
     def _path(self, *, user_id: int, project_id: int, session_id: int) -> Path:
         return Path(self.root_dir) / str(user_id) / str(project_id) / str(session_id)

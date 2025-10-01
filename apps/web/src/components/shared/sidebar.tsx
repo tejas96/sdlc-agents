@@ -119,7 +119,7 @@ const Sidebar = () => {
         )}
       >
         <LogoShort className='h-8 w-8 flex-shrink-0' />
-        {!isCollapsed && <span className='text-2xl font-bold'>OptimaAI</span>}
+        {!isCollapsed && <span className='text-2xl font-bold'>SDLC Agents</span>}
       </div>
 
       <nav className={cn('flex-1', isCollapsed ? 'px-2' : 'px-4')}>

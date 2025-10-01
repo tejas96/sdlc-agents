@@ -13,7 +13,7 @@ services:
       - api
     restart: always
     networks:
-      - optima_ai_network
+      - sdlc_agents_network
 
   api:
     build:
@@ -30,7 +30,7 @@ services:
       - STARTUP_LOCK_ID=424242
       - DB_CONNECT_MAX_RETRIES=30
       - DB_CONNECT_DELAY_SECONDS=2.0
-      - DATABASE_URL=postgresql+asyncpg://postgres:OptimaAI2024!@host.docker.internal:5435/optima_ai
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@host.docker.internal:5433/sdlc_agents
       - AGENTS_DIR=/app/workspaces/
     depends_on:
       postgres:
@@ -43,15 +43,15 @@ services:
       retries: 3
       start_period: 40s
     networks:
-      - optima_ai_network
+      - sdlc_agents_network
 
   postgres:
     image: postgres:15-alpine
-    container_name: optima_ai_postgres
+    container_name: sdlc_agents_postgres
     environment:
-      POSTGRES_DB: optima_ai
+      POSTGRES_DB: sdlc_agents
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: OptimaAI2024!
+      POSTGRES_PASSWORD: postgres
       POSTGRES_INITDB_ARGS: "--locale=C.UTF-8"
       LC_ALL: C.UTF-8
       LANG: C.UTF-8
@@ -60,16 +60,16 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d optima_ai"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d sdlc_agents"]
       interval: 10s
       timeout: 5s
       retries: 5
     networks:
-      - optima_ai_network
+      - sdlc_agents_network
 
 volumes:
   postgres_data:
 
 networks:
-  optima_ai_network:
+  sdlc_agents_network:
     driver: bridge

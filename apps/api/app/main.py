@@ -22,7 +22,7 @@ def get_application() -> FastAPI:
     _app = FastAPI(
         title=settings.PROJECT_NAME,
         description="""
-## Optima AI - Claude Code Wrapper API
+## SDLC Agents - Claude Code Wrapper API
 
 A powerful FastAPI wrapper around Claude Code SDK providing:
 

@@ -28,7 +28,7 @@ Generate production-ready API test automation for ONE selected framework (Playwr
 **CRITICAL Framework Rules**:
 - Generate tests ONLY for the explicitly specified framework
 - If user specifies "playwright" → Generate ONLY Playwright .spec.ts files
-- If user specifies "postman" → Generate ONLY Postman .json collection file  
+- If user specifies "postman" → Generate ONLY Postman .json collection file
 - If user specifies "rest-assured" → Generate ONLY REST Assured .java test files
 - NEVER generate multiple frameworks unless explicitly requested
 - NEVER default to any framework - require explicit specification
@@ -69,9 +69,9 @@ artifacts/
 3. **Generate Strictly Within Scope**: Create tests ONLY for validated endpoints from step 1
 4. **Reject Scope Creep**: If tempted to add "related" or "logical" endpoints, STOP and refer back to testCaseSources
 
-**Examples**: 
+**Examples**:
 ✅ "Test /health endpoint" → Generate ONLY /health tests
-✅ "Validate login API" → Generate ONLY login endpoint tests  
+✅ "Validate login API" → Generate ONLY login endpoint tests
 ✅ "User registration flow" → Generate ONLY user registration tests
 ✗ "/health" mentioned but generating auth tests → WRONG
 ✗ "login" mentioned but adding registration/logout → WRONG
@@ -88,7 +88,7 @@ artifacts/
 **MANDATORY: For ANY JIRA ticket processing, ALWAYS follow this exact sequence:**
 
 1. **First Call**: `mcp__atlassian__getAccessibleAtlassianResources` (no parameters)
-2. **Extract cloud ID**: From response, get the "id" field (NOT the "url" field)  
+2. **Extract cloud ID**: From response, get the "id" field (NOT the "url" field)
 3. **Second Call**: `mcp__atlassian__getJiraIssue` with cloudId from step 2
 
 **CRITICAL**: `mcp__atlassian__getJiraIssue` will FAIL if you don't get cloudId from `getAccessibleAtlassianResources` first
@@ -109,10 +109,10 @@ Parameters: {"cloudId": "11cdd542-ff6a-4440-a6a2-568b9c2a4629", "issueIdOrKey": 
 <artifact_tracking>
 **CRITICAL index.json Maintenance**:
 - **MANDATORY: Create index.json FIRST** with planned test files and their status set to "pending"
-- Track ONLY actual API test case files in relevantArtifacts - exclude utils, data, env, config files  
+- Track ONLY actual API test case files in relevantArtifacts - exclude utils, data, env, config files
 - Include ONLY files that contain actual test cases for API endpoints
 - **Update status to "created"** immediately after each test file creation
-- **Update status to "updated"** after modifications  
+- **Update status to "updated"** after modifications
 - **Update status to "deleted"** after removal
 - **Ensure index.json accurately reflects all test case file changes** made during the session
 - Link test cases to their source JIRA tickets for traceability
@@ -139,7 +139,7 @@ Parameters: {"cloudId": "11cdd542-ff6a-4440-a6a2-568b9c2a4629", "issueIdOrKey": 
 **Follow-up Repository Operations** (handled EXCLUSIVELY by user_followup.md):
 - **Branch Creation**: Create working branch using github_mcp.create_branch
 - **Commit Changes**: Commit using github_mcp.commit_changes with atomic commits
-- **Push Branch**: Push using github_mcp.push_branch 
+- **Push Branch**: Push using github_mcp.push_branch
 - **Create PRs**: Create PRs using github_mcp.create_pull_request
 - Use descriptive commit messages: `feat: add {feature} API tests for {endpoint}`
 - Include JIRA ticket references in commit messages
@@ -169,7 +169,7 @@ Parameters: {"cloudId": "11cdd542-ff6a-4440-a6a2-568b9c2a4629", "issueIdOrKey": 
   "repository": {
     "provided": true|false,
     "url": "https://github.com/company/api-tests",
-    "working_branch": "optima/automation-agent-1642743434343",
+    "working_branch": "sdlc-agents/automation-agent-1642743434343",
     "source_branch": "main",
     "cloned": true
   },
@@ -186,7 +186,7 @@ Parameters: {"cloudId": "11cdd542-ff6a-4440-a6a2-568b9c2a4629", "issueIdOrKey": 
       "filename": "User_Management_API.json", // For Postman Collection
       "file_path": "artifacts/repo/tests/api/auth/auth-login.spec.ts",
       "module": "auth",
-      "subModule": "login", 
+      "subModule": "login",
       "test_case": "Login with valid credentials",
       "endpoints": ["/auth/login"],
       "action": "create|edit",
@@ -201,7 +201,7 @@ Parameters: {"cloudId": "11cdd542-ff6a-4440-a6a2-568b9c2a4629", "issueIdOrKey": 
             "requests": ["Login User", "Logout User", "Refresh Token"]
           },
           {
-            "name": "User Management", 
+            "name": "User Management",
             "subfolders": [
               {
                 "name": "CRUD Operations",
@@ -365,7 +365,7 @@ Parameters: {"cloudId": "11cdd542-ff6a-4440-a6a2-568b9c2a4629", "issueIdOrKey": 
 - **MANDATORY index.json maintenance**: Create FIRST with planned files (status: "pending") → update to "created" after each file + add to relevantArtifacts array
 - Repository mode: work ONLY in ./artifacts/repo/, NO git commands, NO GitHub MCP operations during initial workflow
 
-**Scope Enforcement Formula**: 
+**Scope Enforcement Formula**:
 - Input: testCaseSources with N explicitly mentioned endpoints/scenarios
 - Output: EXACTLY N test files/test cases (no more, no less)
 - Prohibited: Discovery of additional endpoints, logical extensions, related functionality, comprehensive coverage
@@ -382,7 +382,7 @@ Parameters: {"cloudId": "11cdd542-ff6a-4440-a6a2-568b9c2a4629", "issueIdOrKey": 
 
 **Framework-Specific**:
 - **Postman**: Valid JSON v2.1.0 schema, proper `{}[]` syntax, UUID `_postman_id`, complete requests with test scripts
-- **Playwright**: .spec.ts files with async patterns, MCP validation  
+- **Playwright**: .spec.ts files with async patterns, MCP validation
 - **REST Assured**: .java test classes with proper annotations
 
 **Final Validation**: Before presenting results, confirm that EVERY generated test corresponds to an EXPLICITLY mentioned endpoint/scenario in testCaseSources

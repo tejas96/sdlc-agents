@@ -138,7 +138,7 @@ Responses use standard SSE with `Content-Type: text/event-stream` and no `x-verc
     ```
     event: tool_call
     data: {"type":"tool_call","toolCallId":"call_123","toolName":"todo","args":{"item":"..."}}
-    
+
     event: finish
     data: {"type":"finish","finishReason":"stop","usage":{"promptTokens":0,"completionTokens":0}}
     ```
@@ -146,7 +146,7 @@ Responses use standard SSE with `Content-Type: text/event-stream` and no `x-verc
   - Example:
     ```
     data: {"type":"tool_call","toolCallId":"call_123","toolName":"todo","args":{"item":"..."}}
-    
+
     data: {"type":"finish","finishReason":"stop","usage":{"promptTokens":0,"completionTokens":0}}
     ```
 
@@ -474,7 +474,7 @@ POST /api/v1/agents/test_case_generation/sessions
         "type": "document",
         "provider": "Notion",
         "id": "250cd90c-d2cd-806f-8b2f-d626a819d271",
-        "url": "https://www.notion.so/Optima-AI-QA-Module-TestGen-AI-Agent-250cd90cd2cd806f8b2fd626a819d271"
+        "url": "https://www.notion.so/SDLC-Agents-QA-Module-TestGen-AI-Agent-250cd90cd2cd806f8b2fd626a819d271"
       }
     ],
     "docs": [
@@ -825,7 +825,7 @@ POST /api/v1/agents/api_testing_suite/run?protocol=sse&session_id=225
 Use the `session_id` query parameter to continue a session. For follow‑ups, format the last user message to explicitly target a source and provide the feedback. The system uses this exact structure to locate the right source folder (see `apps/api/app/agents/templates/test_case_generation/user_followup.md`):
 
 ```
-For Jira Issue: OD-8, please make following improvements: 
+For Jira Issue: OD-8, please make following improvements:
 <your feedback here>
 ```
 
@@ -857,6 +857,3 @@ POST /api/v1/agents/code_analysis/42/run
   "messages": [{"role": "user", "content": "Also include API docs."}]
 }
 ```
-
-
-

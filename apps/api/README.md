@@ -1,6 +1,6 @@
-# Optima AI API
+# SDLC Agents API
 
-A powerful FastAPI backend for Optima AI with Claude Code SDK streaming, PostgreSQL database integration, and JWT authentication.
+A powerful FastAPI backend for SDLC Agents with Claude Code SDK streaming, PostgreSQL database integration, and JWT authentication.
 
 ## Features
 
@@ -56,7 +56,7 @@ The application includes a comprehensive database schema with multiple entities 
 1. **Clone the repository**
    ```bash
    git clone <repository-url>
-   cd optima-ai/apps/api
+   cd sdlc-agents/apps/api
    ```
 
 2. **Install dependencies**
@@ -74,7 +74,7 @@ The application includes a comprehensive database schema with multiple entities 
    ```bash
    # Using Docker Compose
    docker-compose up postgres -d
-   
+
    # Or start PostgreSQL locally
    ```
 
@@ -82,7 +82,7 @@ The application includes a comprehensive database schema with multiple entities 
    ```bash
    # Run the database initialization script
    python scripts/init_db.py
-   
+
    # Or manually run migrations
    alembic upgrade head
    ```
@@ -91,7 +91,7 @@ The application includes a comprehensive database schema with multiple entities 
    ```bash
    # Using manage.py (recommended)
    poetry run python manage.py run --reload
-   
+
    # Or using uvicorn directly
    poetry run uvicorn app.main:app --reload
    ```
@@ -102,7 +102,7 @@ Create a `.env` file in the `apps/api` directory:
 
 ```env
 # Database Configuration
-DATABASE_URL=postgresql+asyncpg://postgres:password@localhost:5432/optima_ai
+DATABASE_URL=postgresql+asyncpg://postgres:password@localhost:5432/sdlc_agents
 DATABASE_ECHO=false
 
 # JWT Configuration
@@ -115,7 +115,7 @@ REFRESH_TOKEN_EXPIRE_DAYS=7
 CLAUDE_CODE_OAUTH_TOKEN=your-anthropic-api-key
 
 # API Configuration
-PROJECT_NAME=Optima AI API
+PROJECT_NAME=SDLC Agents API
 VERSION=1.0.0
 API_V1_STR=/api/v1
 DEBUG=true
@@ -171,7 +171,7 @@ Examples:
 # Use a custom system prompt and workspace
 python apps/api/app/run_orchestrator.py run -m "Analyze" \
   --system-prompt-file apps/api/sample_rendered_system_prompt.md \
-  --workspace-dir /tmp/optima-workspace
+  --workspace-dir /tmp/sdlc-agents-workspace
 
 # Read prompt from a file
 python apps/api/app/run_orchestrator.py run --message-file prompt.txt
@@ -328,13 +328,13 @@ docker-compose down
 ### Manual Docker Build
 ```bash
 # Build the API image
-docker build -t optima-ai-api .
+docker build -t sdlc-agents-api .
 
 # Run the container
 docker run -p 8000:8000 \
-  -e DATABASE_URL=postgresql+asyncpg://postgres:password@host.docker.internal:5432/optima_ai \
+  -e DATABASE_URL=postgresql+asyncpg://postgres:password@host.docker.internal:5432/sdlc_agents \
   -e SECRET_KEY=your-secret-key \
-  optima-ai-api
+  sdlc-agents-api
 ```
 
 ## Project Structure
@@ -376,4 +376,4 @@ apps/api/
 
 ## License
 
-This project is licensed under the MIT License. 
+This project is licensed under the MIT License.

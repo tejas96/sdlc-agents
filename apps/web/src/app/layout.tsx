@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Optima AI - Intelligent Development Assistant',
+  title: 'SDLC Agents - Intelligent Development Assistant',
   description:
     'Your intelligent development assistant for enhanced productivity and code quality',
 };

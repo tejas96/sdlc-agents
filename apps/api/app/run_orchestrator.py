@@ -14,7 +14,7 @@ Usage examples:
   - Use a custom system prompt file and workspace:
       python apps/api/app/run_orchestrator.py run -m "Analyze" \
         --system-prompt-file apps/api/sample_rendered_system_prompt.md \
-        --workspace-dir /tmp/optima-workspace
+        --workspace-dir /tmp/sdlc-agents-workspace
 
   - Provide MCP servers config via JSON file:
       python apps/api/app/run_orchestrator.py run -m "Analyze" --mcp-config mcp.json

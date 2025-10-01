@@ -213,7 +213,7 @@ export default function Chat({ sessionID, regenerate }: ChatProps) {
       };
     } else {
       return {
-        title: 'Optima AI',
+        title: 'SDLC Agents',
         description: 'Ask questions about your analysis',
       };
     }

@@ -1,6 +1,6 @@
 # File Upload API Documentation
 
-This document describes the file upload functionality for user file storage in the Optima AI API.
+This document describes the file upload functionality for user file storage in the SDLC Agents API.
 
 ## Overview
 
@@ -16,7 +16,7 @@ Files are stored in the following directory structure:
 ```
 
 Where:
-- `workspace_root`: Configured workspace directory (default: `/tmp/optima`)
+- `workspace_root`: Configured workspace directory (default: `/tmp/sdlc-agents`)
 - `user_id`: ID of the user who owns the files
 - `files/`: Subdirectory containing user's uploaded files
 
@@ -171,19 +171,19 @@ Files uploaded to user storage are automatically available to AI agents during t
 **On macOS/Linux:**
 ```bash
 # Check if file exists
-ls -la /tmp/optima/{user_id}/files/{filename}
+ls -la /tmp/sdlc-agents/{user_id}/files/{filename}
 
 # List all user files
-ls -la /tmp/optima/{user_id}/files/
+ls -la /tmp/sdlc-agents/{user_id}/files/
 ```
 
 **On Windows:**
 ```cmd
 # Check if file exists
-dir %TEMP%\optima\{user_id}\files\{filename}
+dir %TEMP%\sdlc-agents\{user_id}\files\{filename}
 
 # List all user files
-dir %TEMP%\optima\{user_id}\files\
+dir %TEMP%\sdlc-agents\{user_id}\files\
 ```
 
 ### Python Script Verification
@@ -193,9 +193,9 @@ import os
 from pathlib import Path
 
 # Get temp directory
-temp_dir = os.path.join(os.path.expanduser("~"), ".cache", "optima")
+temp_dir = os.path.join(os.path.expanduser("~"), ".cache", "sdlc-agents")
 # Or on some systems:
-# temp_dir = "/tmp/optima"
+# temp_dir = "/tmp/sdlc-agents"
 
 # Check for your user's files
 user_id = 1  # Replace with your actual user ID

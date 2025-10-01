@@ -37,7 +37,7 @@ async function registerClient(): Promise<MCPClientCredentials> {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      client_name: 'Optima AI',
+      client_name: 'SDLC Agents',
       redirect_uris: [
         `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/atlassian-mcp`,
       ],

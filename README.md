@@ -1,4 +1,4 @@
-# Optima AI
+# SDLC Agents
 
 A modern full-stack application built with FastAPI and Next.js, featuring real-time AI interactions with Claude Code SDK.
 
@@ -81,7 +81,7 @@ graph TB
 ### Project Structure
 
 ```
-optima-ai/
+sdlc-agents/
 ├── apps/
 │   ├── web/                    # Next.js frontend (placeholder)
 │   └── api/                    # FastAPI backend
@@ -262,7 +262,7 @@ poetry --version  # Should show 1.6.0 or higher
 
    ```bash
    git clone <repository-url>
-   cd optima-ai
+   cd sdlc-agents
    ```
 
 2. **Verify installations**
@@ -437,7 +437,7 @@ If you prefer containerized development, you can skip most manual installations 
 
 # Clone and setup
 git clone <repository-url>
-cd optima-ai
+cd sdlc-agents
 cd apps/api && cp .env.example .env  # Edit with your configuration
 
 # Start all services with Docker
@@ -536,7 +536,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 👥 Team
 
-Built with ❤️ by the Optima AI Team
+Built with ❤️ by the SDLC Agents Team
 
 ---
 

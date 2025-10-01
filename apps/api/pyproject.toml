@@ -1,8 +1,8 @@
 [tool.poetry]
-name = "optima-ai-api"
+name = "sdlc-agents-api"
 version = "1.0.0"
-description = "FastAPI backend for Optima AI with Claude Code SDK streaming"
-authors = ["Optima AI Team <team@optima-ai.com>"]
+description = "FastAPI backend for SDLC Agents with Claude Code SDK streaming"
+authors = ["SDLC Agents Team <team@sdlc-agents.com>"]
 readme = "README.md"
 packages = [{include = "app"}]
 
@@ -86,7 +86,7 @@ known_first_party = ["app"]
 # Select rules to enable
 select = [
     "E",     # pycodestyle errors
-    "W",     # pycodestyle warnings  
+    "W",     # pycodestyle warnings
     "F",     # Pyflakes
     "I",     # isort
     "B",     # flake8-bugbear
@@ -109,7 +109,7 @@ unfixable = []
 # Exclude a variety of commonly ignored directories.
 exclude = [
     ".bzr",
-    ".direnv", 
+    ".direnv",
     ".eggs",
     ".git",
     ".hg",
@@ -191,4 +191,4 @@ exclude_lines = [
     "if __name__ == .__main__.:",
     "class .*\\bProtocol\\):",
     "@(abc\\.)?abstractmethod",
-] 
+]

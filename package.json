@@ -1,25 +1,25 @@
 {
-  "name": "optima-ai",
+  "name": "sdlc-agents",
   "version": "1.0.0",
   "private": true,
-  "description": "Optima AI - FastAPI + Next.js Monorepo with Claude Integration",
+  "description": "SDLC Agents - FastAPI + Next.js Monorepo with Claude Integration",
   "scripts": {
     "dev": "concurrently \"pnpm run dev:api\" \"pnpm run dev:web\"",
-    "dev:web": "pnpm --filter @optima-ai/web dev",
+    "dev:web": "pnpm --filter @sdlc-agents/web dev",
     "dev:api": "cd apps/api && make run HOST=0.0.0.0 PORT=8000 RELOAD=true",
     "build": "turbo run build",
-    "build:web": "pnpm --filter @optima-ai/web build",
+    "build:web": "pnpm --filter @sdlc-agents/web build",
     "build:ci": "cd apps/web && npm ci && npm run build",
     "test": "turbo run test",
     "test:api": "cd apps/api && make test",
     "test:api:cov": "cd apps/api && make test",
-    "test:web": "pnpm --filter @optima-ai/web test",
+    "test:web": "pnpm --filter @sdlc-agents/web test",
     "format:api": "cd apps/api && make format",
     "lint": "turbo run lint",
     "lint:api": "cd apps/api && make lint",
-    "lint:web": "pnpm --filter @optima-ai/web lint",
+    "lint:web": "pnpm --filter @sdlc-agents/web lint",
     "type-check": "turbo run type-check",
-    "type-check:web": "pnpm --filter @optima-ai/web type-check",
+    "type-check:web": "pnpm --filter @sdlc-agents/web type-check",
     "docker:up": "docker-compose up -d",
     "docker:down": "docker-compose down",
     "docker:build": "docker-compose build",
@@ -55,6 +55,6 @@
     "python",
     "poetry"
   ],
-  "author": "Optima AI Team",
+  "author": "SDLC Agents Team",
   "license": "MIT"
-} 
+}
