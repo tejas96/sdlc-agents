@@ -1,1 +1,1 @@
-"""API version 1 package."""
+# API v1 module

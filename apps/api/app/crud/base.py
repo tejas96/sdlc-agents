@@ -1,81 +1,82 @@
-"""Base CRUD operations."""
+"""Base CRUD operations for all models."""
 
 from typing import Any, Generic, TypeVar
 
-from fastapi.encoders import jsonable_encoder
-from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlmodel import SQLModel
+from sqlalchemy.sql.selectable import Select
 
-ModelType = TypeVar("ModelType", bound=SQLModel)
-CreateSchemaType = TypeVar("CreateSchemaType", bound=BaseModel)
-UpdateSchemaType = TypeVar("UpdateSchemaType", bound=BaseModel)
+from app.models.base import BaseModel
+
+ModelType = TypeVar("ModelType", bound=BaseModel)
+CreateSchemaType = TypeVar("CreateSchemaType")
+UpdateSchemaType = TypeVar("UpdateSchemaType")
 
 
-class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
-    def __init__(self, model: type[ModelType]):
-        """
-        CRUD object with default methods to Create, Read, Update, Delete (CRUD).
+class BaseCRUD(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
+    """Base CRUD operations for all models.
 
-        **Parameters**
-        * `model`: A SQLModel class
-        * `schema`: A Pydantic model (schema) class
-        """
+    Provides common CRUD operations that can be inherited by specific model CRUD classes.
+    """
+
+    def __init__(self, model: type[ModelType], session: AsyncSession):
+        """Initialize CRUD with model."""
         self.model = model
+        self.session = session
 
-    async def get(self, db: AsyncSession, id: Any) -> ModelType | None:
-        """Get a single record by ID."""
-        result = await db.execute(select(self.model).where(self.model.id == id))
-        return result.scalar_one_or_none()
+    def get_query(self) -> Select:
+        """Get base query with user filtering applied by default."""
+        return select(self.model)
 
-    async def get_multi(
-        self, db: AsyncSession, *, skip: int = 0, limit: int = 100
-    ) -> list[ModelType]:
-        """Get multiple records with pagination."""
-        result = await db.execute(select(self.model).offset(skip).limit(limit))
-        return result.scalars().all()
+    async def get(self, id: int) -> ModelType | None:
+        """Get model by ID."""
+        result = await self.session.execute(self.get_query().where(self.model.id == id))  # type: ignore[arg-type]
+        return result.unique().scalar_one_or_none()
 
-    async def create(self, db: AsyncSession, *, obj_in: CreateSchemaType, **kwargs: Any) -> ModelType:
-        """Create a new record."""
-        obj_in_data = jsonable_encoder(obj_in)
-        obj_in_data.update(kwargs)
-        db_obj = self.model(**obj_in_data)
-        db.add(db_obj)
-        await db.commit()
-        await db.refresh(db_obj)
+    async def get_multi(self, *, skip: int = 0, limit: int = 100) -> list[ModelType]:
+        """Get multiple models."""
+        result = await self.session.execute(self.get_query().offset(skip).limit(limit))
+        return list(result.scalars().all())
+
+    async def create(self, *, obj_in: CreateSchemaType) -> ModelType:
+        """Create a new model."""
+        if isinstance(obj_in, dict):
+            create_data = obj_in
+        else:
+            # Pydantic v2
+            create_data = obj_in.model_dump(exclude_unset=True)  # type: ignore[attr-defined]
+
+        db_obj = self.model(**create_data)
+        self.session.add(db_obj)
+        await self.session.commit()
+        await self.session.refresh(db_obj)
         return db_obj
 
-    async def update(
-        self,
-        db: AsyncSession,
-        *,
-        db_obj: ModelType,
-        obj_in: UpdateSchemaType | dict[str, Any]
-    ) -> ModelType:
-        """Update an existing record."""
-        obj_data = jsonable_encoder(db_obj)
+    async def update(self, *, db_obj: ModelType, obj_in: UpdateSchemaType | dict[str, Any]) -> ModelType:
+        """Update a model."""
         if isinstance(obj_in, dict):
             update_data = obj_in
         else:
-            update_data = obj_in.dict(exclude_unset=True)
-        for field in obj_data:
-            if field in update_data:
-                setattr(db_obj, field, update_data[field])
-        db.add(db_obj)
-        await db.commit()
-        await db.refresh(db_obj)
+            # Pydantic v2
+            update_data = obj_in.model_dump(exclude_unset=True)  # type: ignore[attr-defined]
+
+        for field, value in update_data.items():
+            setattr(db_obj, field, value)
+
+        self.session.add(db_obj)
+        await self.session.commit()
+        await self.session.refresh(db_obj)
         return db_obj
 
-    async def remove(self, db: AsyncSession, *, id: int) -> ModelType | None:
-        """Delete a record by ID."""
-        obj = await self.get(db, id=id)
+    async def remove(self, *, id: int) -> ModelType | None:
+        """Delete a model."""
+        obj = await self.session.get(self.model, id)
         if obj:
-            await db.delete(obj)
-            await db.commit()
+            await self.session.delete(obj)
+            await self.session.commit()
         return obj
 
-    async def count(self, db: AsyncSession) -> int:
-        """Count total records."""
-        result = await db.execute(select(self.model))
-        return len(result.scalars().all())
+    async def exists(self, *, id: int) -> bool:
+        """Check if model exists by ID."""
+        result = await self.session.execute(self.get_query().where(self.model.id == id))  # type: ignore[arg-type]
+        return result.unique().scalar_one_or_none() is not None

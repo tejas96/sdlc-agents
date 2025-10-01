@@ -1,126 +1,50 @@
-"""Integration database model."""
+"""Integration model for managing third-party service integrations."""
 
-from enum import Enum
-from typing import TYPE_CHECKING
+from typing import Any
 
-from sqlmodel import Field, Relationship, SQLModel
+from sqlalchemy import JSON
+from sqlalchemy.schema import UniqueConstraint
+from sqlmodel import Field
 
+from app.integrations.enums import AuthType, IntegrationProvider
 from app.models.base import AuditedModel
-
-if TYPE_CHECKING:
-    from app.models.user import User
-
-
-class IntegrationType(str, Enum):
-    """Integration type enumeration."""
-    GITHUB = "github"
-    GITLAB = "gitlab"
-    BITBUCKET = "bitbucket"
-    JIRA = "jira"
-    SLACK = "slack"
-    DISCORD = "discord"
-    TEAMS = "teams"
-    JENKINS = "jenkins"
-    DOCKER = "docker"
-    AWS = "aws"
-    GCP = "gcp"
-    AZURE = "azure"
-    WEBHOOK = "webhook"
-    CUSTOM = "custom"
-
-
-class IntegrationStatus(str, Enum):
-    """Integration status enumeration."""
-    ACTIVE = "active"
-    INACTIVE = "inactive"
-    ERROR = "error"
-    PENDING = "pending"
-    EXPIRED = "expired"
 
 
 class Integration(AuditedModel, table=True):
-    """Integration model for external service connections."""
+    """Integration model for managing third-party service integrations.
+
+    Schema (inherited from AuditedModel which includes BaseModel):
+    - id: Primary key (from BaseModel)
+    - created_at: Record creation timestamp (from BaseModel)
+    - updated_at: Record last update timestamp (from BaseModel)
+    - created_by: Foreign key to Users (from AuditedModel)
+    - updated_by: Foreign key to Users (from AuditedModel)
+
+    Schema (specific to Integration):
+    - name: Integration name (max 100 chars)
+    - auth_type: Authentication type (OAuth/API Key/PAT)
+    - credentials: JSONB field for integration configuration
+    - is_active: Integration status
+    - type: Integration type
+
+    Business Rules:
+    - Each user can only have ONE integration per type (Atlassian, Notion, GitHub)
+    - This is enforced by the unique constraint on (type, created_by)
+    """
 
     __tablename__ = "integrations"
+    __table_args__ = (
+        # Business rule: Only one integration per type per user
+        UniqueConstraint("type", "created_by", name="uq_integration_type_user"),
+        # Legacy constraint for backward compatibility (can be removed in future migration)
+        UniqueConstraint("type", "is_active", "created_by", name="uq_integration_type_active_created"),
+        {"schema": None},
+    )
 
-    name: str = Field(index=True, description="Integration name")
-    slug: str = Field(unique=True, index=True, description="Integration URL slug")
-    description: str | None = Field(default=None, description="Integration description")
-    integration_type: IntegrationType = Field(description="Type of integration")
-    status: IntegrationStatus = Field(default=IntegrationStatus.ACTIVE, description="Integration status")
-
-    # Connection configuration
-    config: str | None = Field(default=None, description="Integration configuration (JSON)")
-    credentials: str | None = Field(default=None, description="Encrypted credentials (JSON)")
-
-    # API settings
-    api_url: str | None = Field(default=None, description="API base URL")
-    api_version: str | None = Field(default=None, description="API version")
-    rate_limit: int | None = Field(default=None, description="Rate limit per hour")
-
-    # OAuth settings (for OAuth-based integrations)
-    oauth_client_id: str | None = Field(default=None, description="OAuth client ID")
-    oauth_scopes: str | None = Field(default=None, description="OAuth scopes (JSON array)")
-    oauth_token: str | None = Field(default=None, description="Encrypted OAuth token")
-    oauth_refresh_token: str | None = Field(default=None, description="Encrypted OAuth refresh token")
-    oauth_expires_at: str | None = Field(default=None, description="OAuth token expiration")
-
-    # Webhook settings
-    webhook_url: str | None = Field(default=None, description="Webhook URL")
-    webhook_secret: str | None = Field(default=None, description="Webhook secret")
-    webhook_events: str | None = Field(default=None, description="Webhook events (JSON array)")
-
-    # Monitoring and health
-    last_health_check_at: str | None = Field(default=None, description="Last health check timestamp")
-    health_check_status: str | None = Field(default=None, description="Health check status")
-    total_requests: int = Field(default=0, description="Total API requests made")
-    failed_requests: int = Field(default=0, description="Failed API requests")
-
-    # Owner
-    owner_id: int = Field(foreign_key="users.id", description="Integration owner")
-    owner: "User" = Relationship(back_populates="integrations")
-
-
-class IntegrationBase(SQLModel):
-    """Base integration schema for shared properties."""
-    name: str
-    slug: str
-    description: str | None = None
-    integration_type: IntegrationType
-    status: IntegrationStatus = IntegrationStatus.ACTIVE
-    config: str | None = None
-    api_url: str | None = None
-    api_version: str | None = None
-    rate_limit: int | None = None
-    oauth_client_id: str | None = None
-    oauth_scopes: str | None = None
-    webhook_url: str | None = None
-    webhook_events: str | None = None
-
-
-class IntegrationCreate(IntegrationBase):
-    """Schema for creating a new integration."""
-    credentials: str | None = None
-    webhook_secret: str | None = None
-
-
-class IntegrationUpdate(SQLModel):
-    """Schema for updating an integration."""
-    name: str | None = None
-    slug: str | None = None
-    description: str | None = None
-    integration_type: IntegrationType | None = None
-    status: IntegrationStatus | None = None
-    config: str | None = None
-    credentials: str | None = None
-    api_url: str | None = None
-    api_version: str | None = None
-    rate_limit: int | None = None
-    oauth_client_id: str | None = None
-    oauth_scopes: str | None = None
-    oauth_token: str | None = None
-    oauth_refresh_token: str | None = None
-    oauth_expires_at: str | None = None
-    webhook_url: str | None = None
-    webhook_secret: str | None = None
-    webhook_events: str | None = None
+    name: str = Field(max_length=100, description="Integration name")
+    auth_type: AuthType = Field(description="Authentication type (OAuth/API Key/PAT)")
+    credentials: dict[str, Any] = Field(
+        default_factory=dict, sa_type=JSON, description="Integration configuration JSONB"
+    )
+    is_active: bool = Field(default=True, description="Integration status")
+    type: IntegrationProvider = Field(description="Integration type")

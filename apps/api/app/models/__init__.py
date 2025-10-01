@@ -1,18 +1,9 @@
-"""Database models package."""
+"""Database models for the application."""
 
-from .agent import Agent
-from .base import AuditedModel, BaseModel
+from .ai_agent import AIAgent
 from .integration import Integration
 from .project import Project
 from .user import User
-from .workflow import Workflow
+from .user_agent_session import UserAgentSession
 
-__all__ = [
-    "BaseModel",
-    "AuditedModel",
-    "User",
-    "Project",
-    "Agent",
-    "Workflow",
-    "Integration",
-]
+__all__ = ["AIAgent", "Integration", "Project", "User", "UserAgentSession"]

@@ -1,22 +1,22 @@
-# Makefile for SDLC Agents API development
+# Makefile for API development
 # Usage: make <target> [ARGS="..." / PYTEST_ARGS="..." / HOST=... / PORT=... / RELOAD=...]
 
 PYTHON ?= python
-SRC_PATHS := alembic app tests manage.py
+SRC_PATHS := alembic app tests manage.py seeds
 PYTEST_ARGS ?=
 ARGS ?=
+APP_SRC_PATHS := app
 
-.PHONY: help format test run prestart manage lint clean
+.PHONY: help format test run prestart manage link clean
 
 help:
 	@printf "Available targets:\n"
 	@printf "  format    - run isort then black on source paths\n"
 	@printf "  test      - run pytest (pass PYTEST_ARGS)\n"
-	@printf "  lint      - run ruff (auto-fix) then mypy for type checks\n"
+	@printf "  link      - create a local ./manage wrapper that calls 'python3 manage.py'\n"
 	@printf "  prestart  - run manage.py prestart (waits for DB, migrates, seeds)\n"
 	@printf "  run       - run the app via manage.py run (pass ARGS or HOST/PORT/RELOAD)\n"
 	@printf "  manage    - wrapper to invoke manage.py via python (pass ARGS)\n"
-	@printf "  clean     - clean __pycache__ and .pytest_cache\n"
 
 # Format: isort then black to keep consistent import ordering
 format:
@@ -37,27 +37,43 @@ lint:
 	@echo "🔎 Running mypy on 'app'"
 	@$(PYTHON) -m mypy app || echo "⚠️  mypy reported type issues"
 
+# Run prestart (uses manage.py prestart)
+prestart:
+	@echo "⏳ Running prestart routine"
+	@$(PYTHON) manage.py prestart
+
 # Run the app via manage.py run. Accepts ARGS or HOST/PORT/RELOAD variables.
 run:
 	@echo "🚀 Starting app via manage.py run"
 	@if [ -n "$(ARGS)" ]; then \
 		$(PYTHON) manage.py run $(ARGS); \
 	else \
-		$(PYTHON) manage.py run \
-			$(if $(HOST),--host $(HOST)) \
-			$(if $(PORT),--port $(PORT)) \
-			$(if $(RELOAD),--reload); \
+		# Build args from HOST/PORT/RELOAD if provided
+		ARGS_BUILT=""; \
+		if [ -n "$(HOST)" ]; then ARGS_BUILT="$$ARGS_BUILT --host $(HOST)"; fi; \
+		if [ -n "$(PORT)" ]; then ARGS_BUILT="$$ARGS_BUILT --port $(PORT)"; fi; \
+		if [ -n "$(RELOAD)" ]; then ARGS_BUILT="$$ARGS_BUILT --reload $(RELOAD)"; fi; \
+		$(PYTHON) manage.py run $$ARGS_BUILT; \
 	fi
-
-# Wrapper to invoke manage.py with any args
-manage:
-	@$(PYTHON) manage.py $(ARGS)
 
 clean:
 	@echo "🧹 Cleaning __pycache__ and .pytest_cache"
 	@find . -name "__pycache__" -type d -print0 | xargs -0 rm -rf || true
 	@rm -rf .pytest_cache || true
 
-migrate:
-	@echo "🔄 Running migrations"
-	@$(PYTHON) manage.py upgrade
+precommit:
+	@echo "🔎 Running precommit routine"
+	@echo "🔎 Running ruff linting check on: $(APP_SRC_PATHS)"
+	poetry run ruff check $(APP_SRC_PATHS)
+
+	@echo "🔎 Running ruff formatting check on: $(APP_SRC_PATHS)"
+	poetry run ruff format $(APP_SRC_PATHS) --check
+
+	@echo "🔎 Running black formatting check on: $(APP_SRC_PATHS)"
+	poetry run black $(APP_SRC_PATHS) --check --diff
+
+	@echo "🔎 Running isort import sorting check on: $(APP_SRC_PATHS)"
+	poetry run isort $(APP_SRC_PATHS) --check-only --diff
+
+	@echo "🔎 Running MyPy type checking on: $(APP_SRC_PATHS)"
+	poetry run mypy $(APP_SRC_PATHS)

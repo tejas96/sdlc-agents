@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     """Application settings and configuration"""
 
     # API Configuration
-    PROJECT_NAME: str = Field(default="SDLC Agents API", description="Project name")
+    PROJECT_NAME: str = Field(default="Optima AI API", description="Project name")
     VERSION: str = Field(default="1.0.0", description="API version")
     API_V1_STR: str = Field(default="/api/v1", description="API v1 prefix")
 
@@ -58,13 +58,18 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default=30, description="Access token expiration in minutes")
     REFRESH_TOKEN_EXPIRE_DAYS: int = Field(default=7, description="Refresh token expiration in days")
 
+    # Claude Code SDK Configuration
+    CLAUDE_PERMISSION_MODE: str = Field(default="bypassPermissions", description="Claude SDK permission mode")
+    CLAUDE_REQUEST_TIMEOUT: int = Field(default=300, description="Claude request timeout in seconds")
+    ANTHROPIC_API_KEY: str = Field(default="", description="Anthropic API key")
+
     # Environment Configuration
     ENVIRONMENT: str = Field(default="development", description="Environment name")
     DEBUG: bool = Field(default=True, description="Debug mode")
     LOG_LEVEL: str = Field(default="DEBUG", description="Logging level")
 
-    # Server Configuration
-    PORT: int = Field(default=8001, description="Server port")
+    # Railway Configuration
+    PORT: int = Field(default=8000, description="Server port")
 
     # Security Configuration
     MAX_REQUEST_SIZE: int = Field(default=10 * 1024 * 1024, description="Maximum request size in bytes")  # 10MB
@@ -73,51 +78,11 @@ class Settings(BaseSettings):
     ENABLE_DOCS: bool = Field(default=True, description="Enable API documentation")
     ENABLE_REDOC: bool = Field(default=True, description="Enable ReDoc documentation")
 
-    # SDLC Agents Configuration
+    # Agents/Workspace Configuration
     AGENTS_DIR: str | None = Field(default=None, description="Root directory for per-session agent workspaces")
-    PROJECTS_DIR: str | None = Field(default=None, description="Root directory for project repositories")
-
-    # External Service Configuration
-    GITHUB_CLIENT_ID: str | None = Field(default=None, description="GitHub OAuth client ID")
-    GITHUB_CLIENT_SECRET: str | None = Field(default=None, description="GitHub OAuth client secret")
-    JIRA_CLIENT_ID: str | None = Field(default=None, description="Jira OAuth client ID")
-    JIRA_CLIENT_SECRET: str | None = Field(default=None, description="Jira OAuth client secret")
-    JIRA_API_URL: str | None = Field(default=None, description="Jira API base URL")
-    JIRA_USERNAME: str | None = Field(default=None, description="Jira username")
-    JIRA_API_TOKEN: str | None = Field(default=None, description="Jira API token")
-    SLACK_CLIENT_ID: str | None = Field(default=None, description="Slack OAuth client ID")
-    SLACK_CLIENT_SECRET: str | None = Field(default=None, description="Slack OAuth client secret")
-    SLACK_BOT_TOKEN: str | None = Field(default=None, description="Slack bot token")
-    CONFLUENCE_API_URL: str | None = Field(default=None, description="Confluence API base URL")
-    SENTRY_DSN: str | None = Field(default=None, description="Sentry DSN for error tracking")
-
-    # AI/LLM Configuration
-    ANTHROPIC_API_KEY: str | None = Field(default=None, description="Anthropic Claude API key")
-    OPENAI_API_KEY: str | None = Field(default=None, description="OpenAI API key")
-
-    # Redis Configuration
-    REDIS_URL: str | None = Field(default=None, description="Redis connection URL")
-
-    # Celery Configuration
-    CELERY_BROKER_URL: str | None = Field(default=None, description="Celery broker URL")
-    CELERY_RESULT_BACKEND: str | None = Field(default=None, description="Celery result backend URL")
-
-    # Monitoring Configuration
-    PROMETHEUS_ENABLED: bool = Field(default=True, description="Enable Prometheus metrics")
-    SENTRY_ENABLED: bool = Field(default=False, description="Enable Sentry error tracking")
-
-    # Security Configuration
-    ENCRYPTION_KEY: str | None = Field(default=None, description="Key for encrypting sensitive data")
-    RATE_LIMIT_ENABLED: bool = Field(default=True, description="Enable rate limiting")
-    AUDIT_LOG_RETENTION_DAYS: int = Field(default=90, description="Audit log retention period")
-
-    # Performance Configuration
-    CACHE_TTL_SECONDS: int = Field(default=900, description="Default cache TTL in seconds")
-    MAX_CONCURRENT_AGENTS: int = Field(default=10, description="Maximum concurrent agent executions")
-    AGENT_TIMEOUT_MINUTES: int = Field(default=30, description="Agent execution timeout")
 
     model_config = SettingsConfigDict(
-        env_file=str(Paths.API_DIR / ".env"),  # Look for .env in API directory
+        env_file=str(Paths.ROOT_DIR / ".env"),
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",  # Changed from "forbid" to "ignore" to handle extra env vars

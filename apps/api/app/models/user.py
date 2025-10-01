@@ -1,85 +1,58 @@
-"""User database model."""
+"""User model for authentication and user management."""
 
+from enum import Enum
 from typing import TYPE_CHECKING
 
-from sqlmodel import Field, Relationship, SQLModel
+from pydantic import ConfigDict
+from sqlalchemy import Column, String
+from sqlalchemy_utils import StringEncryptedType  # type: ignore
+from sqlmodel import Field
 
+from app.core.config import get_settings
 from app.models.base import BaseModel
 
 if TYPE_CHECKING:
-    from app.models.agent import Agent
-    from app.models.integration import Integration
-    from app.models.project import Project
-    from app.models.workflow import Workflow
+    pass
+
+
+def get_secret_key() -> str:
+    """Get the secret key for encryption from settings."""
+    settings = get_settings()
+    return settings.SECRET_KEY
+
+
+class Provider(str, Enum):
+    """Authentication provider enum."""
+
+    PASS = "PASS"
+    GITHUB = "GITHUB"
+    MICROSOFT = "MICROSOFT"
 
 
 class User(BaseModel, table=True):
-    """User model for authentication and authorization."""
+    """User model for authentication and user management.
+
+    Based on the ER diagram with the following fields:
+    - id: Primary key
+    - name: User's full name
+    - password: Encrypted password (for PASS provider)
+    - provider: Authentication provider (PASS/GITHUB/MICROSOFT)
+    - email: Unique email address
+    - is_active: Account status
+    - created_at: Record creation timestamp
+    - updated_at: Record last update timestamp
+    """
 
     __tablename__ = "users"
 
-    email: str = Field(unique=True, index=True, description="User email address")
-    username: str = Field(unique=True, index=True, description="Username")
-    full_name: str | None = Field(default=None, description="Full name")
-    hashed_password: str = Field(description="Hashed password")
-    is_active: bool = Field(default=True, description="Whether user is active")
-    is_superuser: bool = Field(default=False, description="Whether user has superuser privileges")
-    avatar_url: str | None = Field(default=None, description="Avatar URL")
-    bio: str | None = Field(default=None, description="User biography")
+    model_config = ConfigDict(use_enum_values=True)
 
-    # Organization fields
-    organization: str | None = Field(default=None, description="Organization name")
-    role: str | None = Field(default=None, description="User role in organization")
-
-    # Preferences
-    timezone: str = Field(default="UTC", description="User timezone")
-    theme: str = Field(default="light", description="UI theme preference")
-
-    # External integrations
-    github_username: str | None = Field(default=None, description="GitHub username")
-    slack_user_id: str | None = Field(default=None, description="Slack user ID")
-
-    # Relationships
-    owned_projects: list["Project"] = Relationship(back_populates="owner")
-    agents: list["Agent"] = Relationship(back_populates="owner")
-    workflows: list["Workflow"] = Relationship(back_populates="owner")
-    integrations: list["Integration"] = Relationship(back_populates="owner")
-
-
-class UserBase(SQLModel):
-    """Base user schema for shared properties."""
-    email: str
-    username: str
-    full_name: str | None = None
-    is_active: bool = True
-    avatar_url: str | None = None
-    bio: str | None = None
-    organization: str | None = None
-    role: str | None = None
-    timezone: str = "UTC"
-    theme: str = "light"
-    github_username: str | None = None
-    slack_user_id: str | None = None
-
-
-class UserCreate(UserBase):
-    """Schema for creating a new user."""
-    password: str
-
-
-class UserUpdate(SQLModel):
-    """Schema for updating a user."""
-    email: str | None = None
-    username: str | None = None
-    full_name: str | None = None
-    password: str | None = None
-    is_active: bool | None = None
-    is_superuser: bool | None = None
-    avatar_url: str | None = None
-    bio: str | None = None
-    organization: str | None = None
-    role: str | None = None
-    timezone: str | None = None
-    theme: str | None = None
-    github_username: str | None = None
-    slack_user_id: str | None = None
+    name: str = Field(max_length=255, description="User's full name")
+    password: str | None = Field(
+        sa_column=Column(StringEncryptedType(String(8), key=get_secret_key), nullable=True),
+        default=None,
+        description="Encrypted password field (for PASS provider)",
+    )
+    provider: Provider = Field(default=Provider.PASS, description="Authentication provider (PASS/GITHUB/MICROSOFT)")
+    email: str = Field(max_length=255, unique=True, index=True, description="Unique email address")
+    is_active: bool = Field(default=True, description="Account status")

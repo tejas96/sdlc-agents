@@ -1,145 +1,114 @@
-"""Project endpoints."""
+"""Project CRUD endpoints for listing, getting, and deleting projects."""
 
-from typing import Any
+from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
 
-from app.api.deps import CurrentUser, DatabaseSession
-from app.crud.project import project_crud
-from app.models.project import ProjectCreate, ProjectUpdate
-from app.schemas.project import ProjectListResponse, ProjectResponse
+from app.agents.enums import AgentIdentifier, AgentModule
+from app.core.auth import get_current_user
+from app.crud.deps import get_project_crud
+from app.crud.project import ProjectCRUD
+from app.models.user import User
+from app.schemas.project import ProjectDetailResponse, ProjectListResponse, ProjectResponse
 
 router = APIRouter()
 
 
 @router.get("/", response_model=ProjectListResponse)
-async def get_projects(
-    db: DatabaseSession,
-    current_user: CurrentUser,
-    skip: int = Query(default=0, ge=0, description="Number of records to skip"),
-    limit: int = Query(default=100, ge=1, le=1000, description="Number of records to retrieve"),
-) -> Any:
-    """Get all projects for the current user."""
-    projects = await project_crud.get_by_owner(db, owner_id=current_user.id, skip=skip, limit=limit)
-    total = await project_crud.count(db)
+async def list_projects(
+    project_crud: Annotated[ProjectCRUD, Depends(get_project_crud)],
+    current_user: Annotated[User, Depends(get_current_user)],
+    skip: Annotated[int, Query(ge=0, description="Number of projects to skip")] = 0,
+    limit: Annotated[int, Query(ge=1, le=100, description="Maximum number of projects to return")] = 100,
+    module: Annotated[AgentModule | None, Query(description="Filter by agent module")] = None,
+    agent_identifier: Annotated[AgentIdentifier | None, Query(description="Filter by agent identifier")] = None,
+) -> ProjectListResponse:
+    """List projects for the current user with pagination and filtering.
 
-    return {
-        "projects": projects,
-        "total": total,
-        "page": skip // limit + 1,
-        "size": limit,
-        "pages": (total + limit - 1) // limit,
-    }
+    Args:
+        project_crud: Project CRUD instance with user scoping.
+        current_user: Current authenticated user.
+        skip: Number of projects to skip for pagination.
+        limit: Maximum number of projects to return (max 100).
+        module: Filter projects by agent module (e.g., development, quality_assurance).
+        agent_identifier: Filter projects by agent identifier (e.g., code_analysis, test_case_generation).
+
+    Returns:
+        ProjectListResponse: Paginated list of projects with agent information.
+    """
+    assert current_user.id is not None, "Authenticated user must have an ID"
+
+    projects, total = await project_crud.get_projects_with_filters(
+        skip=skip,
+        limit=limit,
+        module=module,
+        agent_identifier=agent_identifier,
+    )
+
+    # Create response objects from the consolidated data
+    results = [ProjectResponse.model_validate(project) for project in projects]
+
+    return ProjectListResponse(
+        results=results,
+        total=total,
+        skip=skip,
+        limit=limit,
+        has_more=skip + limit < total,
+    )
 
 
-@router.get("/{project_id}", response_model=ProjectResponse)
+@router.get("/{project_id}", response_model=ProjectDetailResponse)
 async def get_project(
-    project_id: int,
-    db: DatabaseSession,
-    current_user: CurrentUser,
-) -> Any:
-    """Get a specific project by ID."""
-    project = await project_crud.get(db, id=project_id)
+    project_crud: Annotated[ProjectCRUD, Depends(get_project_crud)],
+    current_user: Annotated[User, Depends(get_current_user)],
+    project_id: Annotated[int, Path(description="Project ID")],
+) -> ProjectDetailResponse:
+    """Get a specific project by ID with session details.
+
+    Args:
+        project_crud: Project CRUD instance with user scoping.
+        current_user: Current authenticated user.
+        project_id: The ID of the project to retrieve.
+
+    Returns:
+        ProjectDetailResponse: The project data with session listings and agent information.
+
+    Raises:
+        HTTPException: If project is not found.
+    """
+    assert current_user.id is not None, "Authenticated user must have an ID"
+
+    # Get the project
+    project = await project_crud.get(id=project_id)
     if not project:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Project not found",
         )
-
-    # Check if user owns the project (or is superuser)
-    if project.owner_id != current_user.id and not current_user.is_superuser:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not enough permissions to access this project",
-        )
-
-    return project
+    return ProjectDetailResponse.model_validate(project)
 
 
-@router.post("/", response_model=ProjectResponse, status_code=status.HTTP_201_CREATED)
-async def create_project(
-    project_in: ProjectCreate,
-    db: DatabaseSession,
-    current_user: CurrentUser,
-) -> Any:
-    """Create a new project."""
-    # Check if project slug already exists
-    existing_project = await project_crud.get_by_slug(db, slug=project_in.slug)
-    if existing_project:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="A project with this slug already exists",
-        )
-
-    project = await project_crud.create(
-        db,
-        obj_in=project_in,
-        owner_id=current_user.id,
-        created_by=current_user.id,
-        updated_by=current_user.id,
-    )
-    return project
-
-
-@router.put("/{project_id}", response_model=ProjectResponse)
-async def update_project(
-    project_id: int,
-    project_update: ProjectUpdate,
-    db: DatabaseSession,
-    current_user: CurrentUser,
-) -> Any:
-    """Update a project."""
-    project = await project_crud.get(db, id=project_id)
-    if not project:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Project not found",
-        )
-
-    # Check if user owns the project (or is superuser)
-    if project.owner_id != current_user.id and not current_user.is_superuser:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not enough permissions to update this project",
-        )
-
-    # Check slug uniqueness if being updated
-    if project_update.slug and project_update.slug != project.slug:
-        existing_project = await project_crud.get_by_slug(db, slug=project_update.slug)
-        if existing_project:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="A project with this slug already exists",
-            )
-
-    project = await project_crud.update(
-        db,
-        db_obj=project,
-        obj_in=project_update.dict(exclude_unset=True) | {"updated_by": current_user.id},
-    )
-    return project
-
-
-@router.delete("/{project_id}")
+@router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_project(
-    project_id: int,
-    db: DatabaseSession,
-    current_user: CurrentUser,
-) -> dict[str, str]:
-    """Delete a project."""
-    project = await project_crud.get(db, id=project_id)
+    project_crud: Annotated[ProjectCRUD, Depends(get_project_crud)],
+    current_user: Annotated[User, Depends(get_current_user)],
+    project_id: Annotated[int, Path(description="Project ID")],
+) -> None:
+    """Delete a project by ID.
+
+    Args:
+        project_crud: Project CRUD instance with user scoping.
+        current_user: Current authenticated user.
+        project_id: The ID of the project to delete.
+
+    Raises:
+        HTTPException: If project is not found.
+    """
+    assert current_user.id is not None, "Authenticated user must have an ID"
+
+    project = await project_crud.remove(id=project_id)
     if not project:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Project not found",
         )
-
-    # Check if user owns the project (or is superuser)
-    if project.owner_id != current_user.id and not current_user.is_superuser:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not enough permissions to delete this project",
-        )
-
-    await project_crud.remove(db, id=project_id)
-    return {"message": "Project deleted successfully"}

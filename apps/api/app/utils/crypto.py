@@ -1,33 +1,31 @@
-"""Cryptographic utilities for encrypting/decrypting sensitive data."""
+from __future__ import annotations
 
-import base64
+from typing import cast
 
-from cryptography.fernet import Fernet
+from sqlalchemy import String as SAString
+from sqlalchemy_utils import StringEncryptedType  # type: ignore[import-untyped]
 
 from app.core.config import get_settings
 
 
-def _get_fernet() -> Fernet:
-    """Get Fernet instance using SECRET_KEY."""
-    settings = get_settings()
-    # Use first 32 chars of secret key and pad/truncate as needed
-    key = settings.SECRET_KEY.encode()[:32]
-    key = key.ljust(32, b'0')[:32]  # Pad with zeros if too short, truncate if too long
-    # Encode as base64url for Fernet
-    key_b64 = base64.urlsafe_b64encode(key)
-    return Fernet(key_b64)
+def _get_secret_key() -> str:
+    return get_settings().SECRET_KEY
+
+
+# Use the same encryption mechanism as the model layer
+_string_encrypter: StringEncryptedType = StringEncryptedType(SAString(255), key=_get_secret_key)
 
 
 def encrypt_text(plaintext: str) -> str:
-    """Encrypt plaintext string and return base64 encoded ciphertext."""
-    fernet = _get_fernet()
-    encrypted = fernet.encrypt(plaintext.encode())
-    return base64.urlsafe_b64encode(encrypted).decode()
+    """Encrypt text using the configured SECRET_KEY.
+
+    Returns a base64-encoded ciphertext string compatible with StringEncryptedType.
+    """
+    return cast(str, _string_encrypter.process_bind_param(plaintext, None))
 
 
 def decrypt_text(ciphertext: str) -> str:
-    """Decrypt base64 encoded ciphertext and return plaintext string."""
-    fernet = _get_fernet()
-    encrypted = base64.urlsafe_b64decode(ciphertext.encode())
-    decrypted = fernet.decrypt(encrypted)
-    return decrypted.decode()
+    """Decrypt text previously produced by encrypt_text using SECRET_KEY."""
+    if not ciphertext:
+        return ""
+    return cast(str, _string_encrypter.process_result_value(ciphertext, None))

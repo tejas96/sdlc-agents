@@ -1,130 +1,94 @@
-"""Authentication endpoints."""
+"""Authentication endpoints for user registration, login, and token management."""
 
-from datetime import timedelta
-from typing import Any
+from typing import Annotated
 
-import jwt
-from fastapi import APIRouter, HTTPException, status
-from fastapi.params import Form
+from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.security import HTTPBearer
 
-from app.api.deps import CurrentUser, DatabaseSession
-from app.core.auth import create_access_token, create_refresh_token
-from app.core.config import get_settings
-from app.crud.user import user_crud
-from app.models.user import UserCreate
-from app.schemas.auth import Token, UserLogin, UserResponse
+from app.core.auth import create_access_token, get_current_user, get_user_crud
+from app.crud.user import UserCRUD
+from app.models.user import User
+from app.schemas.auth import Token, UserCreate, UserLogin, UserResponse
 
 router = APIRouter()
+security = HTTPBearer()
+
+
+@router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+async def register(
+    user_data: UserCreate,
+    user_crud: Annotated[UserCRUD, Depends(get_user_crud)],
+) -> UserResponse:
+    """Register a new user.
+
+    Args:
+        user_data: User registration data.
+        user_crud: User CRUD operations instance.
+
+    Returns:
+        UserResponse: The created user data.
+
+    Raises:
+        HTTPException: If email already exists or validation fails.
+    """
+    # Check if user already exists using CRUD layer
+    if await user_crud.exists_by_email(email=user_data.email):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email already registered",
+        )
+
+    # Create new user using CRUD layer
+    db_user = await user_crud.create(obj_in=user_data)
+    return UserResponse.model_validate(db_user)
 
 
 @router.post("/login", response_model=Token)
-async def login_for_access_token(user_credentials: UserLogin, db: DatabaseSession) -> dict[str, Any]:
-    """Login endpoint that returns access and refresh tokens."""
-    user = await user_crud.authenticate(db, email=user_credentials.email, password=user_credentials.password)
+async def login(
+    user_credentials: UserLogin,
+    user_crud: Annotated[UserCRUD, Depends(get_user_crud)],
+) -> Token:
+    """Authenticate user and return JWT tokens.
+
+    Args:
+        user_credentials: User login credentials.
+        user_crud: User CRUD operations instance.
+
+    Returns:
+        Token: JWT access and refresh tokens.
+
+    Raises:
+        HTTPException: If credentials are invalid.
+    """
+    # Authenticate user using CRUD layer
+    user = await user_crud.authenticate(email=user_credentials.email, password=user_credentials.password)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    if not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Inactive user",
-        )
 
-    settings = get_settings()
-    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    # Create access token with 7 days validity
+    access_token = create_access_token(data={"sub": str(user.id), "email": user.email})
 
-    token_data = {"sub": str(user.id), "email": user.email}
-    access_token = create_access_token(data=token_data, expires_delta=access_token_expires)
-    refresh_token = create_refresh_token(data=token_data)
-
-    return {
-        "access_token": access_token,
-        "refresh_token": refresh_token,
-        "token_type": "bearer",
-        "expires_in": settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-    }
-
-
-@router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-async def register_user(user_in: UserCreate, db: DatabaseSession) -> Any:
-    """Register a new user."""
-    # Check if user already exists
-    user = await user_crud.get_by_email(db, email=user_in.email)
-    if user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="A user with this email already exists",
-        )
-
-    user = await user_crud.get_by_username(db, username=user_in.username)
-    if user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="A user with this username already exists",
-        )
-
-    # Create user
-    user = await user_crud.create(db, obj_in=user_in)
-    return user
+    return Token(
+        access_token=access_token,
+        token_type="bearer",
+        expires_in=7 * 24 * 60 * 60,  # 7 days in seconds
+    )
 
 
 @router.get("/me", response_model=UserResponse)
-async def get_current_user_info(current_user: CurrentUser) -> Any:
-    """Get current user information."""
-    return current_user
+async def get_current_user_info(
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> UserResponse:
+    """Get current user information.
 
+    Args:
+        current_user: Current authenticated user.
 
-@router.post("/refresh", response_model=Token)
-async def refresh_access_token(
-    db: DatabaseSession,
-    refresh_token: str = Form(...),
-) -> dict[str, Any]:
-    """Refresh access token using refresh token."""
-    try:
-        # Decode and validate refresh token
-        payload = jwt.decode(refresh_token, get_settings().SECRET_KEY, algorithms=[get_settings().ALGORITHM])
-
-        user_id: int = payload.get("sub")
-        token_type: str = payload.get("type")
-
-        if token_type != "refresh":
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid token type",
-            )
-
-        # Get user from database
-        user = await user_crud.get(db, id=user_id)
-        if not user or not user.is_active:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="User not found or inactive",
-            )
-
-        # Generate new access token
-        access_token_expires = timedelta(minutes=get_settings().ACCESS_TOKEN_EXPIRE_MINUTES)
-        access_token = create_access_token(data={"sub": str(user.id)}, expires_delta=access_token_expires)
-
-        # Optionally generate new refresh token (rotate refresh tokens)
-        refresh_token_expires = timedelta(days=get_settings().REFRESH_TOKEN_EXPIRE_DAYS)
-        new_refresh_token = create_refresh_token(data={"sub": str(user.id)}, expires_delta=refresh_token_expires)
-
-        return {
-            "access_token": access_token,
-            "refresh_token": new_refresh_token,
-            "token_type": "bearer",
-        }
-
-    except jwt.ExpiredSignatureError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Refresh token expired",
-        )
-    except jwt.JWTError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid refresh token",
-        )
+    Returns:
+        UserResponse: Current user data.
+    """
+    return UserResponse.model_validate(current_user)

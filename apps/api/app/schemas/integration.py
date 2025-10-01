@@ -1,62 +1,46 @@
-"""Integration schemas."""
+"""Integration schemas for request/response models."""
 
 from datetime import datetime
+from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 
-from app.models.integration import IntegrationStatus, IntegrationType
-
-
-class IntegrationResponse(BaseModel):
-    """Integration response schema."""
-
-    id: int
-    name: str
-    slug: str
-    description: str | None = None
-    integration_type: IntegrationType
-    status: IntegrationStatus
-    config: str | None = None
-    api_url: str | None = None
-    api_version: str | None = None
-    rate_limit: int | None = None
-    oauth_client_id: str | None = None
-    oauth_scopes: str | None = None
-    oauth_expires_at: str | None = None
-    webhook_url: str | None = None
-    webhook_events: str | None = None
-    last_health_check_at: str | None = None
-    health_check_status: str | None = None
-    total_requests: int
-    failed_requests: int
-    owner_id: int
-    created_at: datetime
-    updated_at: datetime
-    created_by: int
-    updated_by: int
-
-    class Config:
-        from_attributes = True
+from app.integrations.enums import AuthType, IntegrationProvider
 
 
-class IntegrationListResponse(BaseModel):
-    """Integration list response schema."""
+class IntegrationBase(BaseModel):
+    """Base integration schema with common fields."""
 
-    integrations: list[IntegrationResponse]
-    total: int
-    page: int
-    size: int
-    pages: int
+    name: str = Field(..., min_length=1, max_length=100, description="Integration name")
+    auth_type: AuthType = Field(..., description="Authentication type")
+    type: IntegrationProvider = Field(..., description="Integration type")
+    is_active: bool = Field(default=True, description="Integration status")
 
 
-class IntegrationClientCredentials(BaseModel):
-    """Integration client credentials schema."""
+class IntegrationCreate(IntegrationBase):
+    """Schema for integration creation with credential validation."""
 
-    client_id: str
-    client_secret: str
-    redirect_uri: str
-    scopes: list[str]
-    token_url: str
-    auth_url: str
-    api_url: str
-    api_version: str
+    credentials: dict[str, Any] = Field(..., description="Integration credentials based on auth_type")
+
+
+class IntegrationUpdate(BaseModel):
+    """Schema for integration update."""
+
+    auth_type: AuthType = Field(..., description="Authentication type")
+    credentials: dict[str, Any] = Field(..., description="Integration credentials based on auth_type")
+    is_active: bool = Field(default=True, description="Integration status")
+
+
+class IntegrationResponse(IntegrationBase):
+    """Schema for integration response (without sensitive data)."""
+
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_encoders={datetime: lambda v: v.isoformat()},
+    )
+
+    id: int = Field(..., description="Integration ID")
+    created_at: datetime = Field(..., description="Integration creation timestamp")
+    updated_at: datetime = Field(..., description="Last update timestamp")
+    created_by: int = Field(..., description="User ID who created the integration")
+    updated_by: int = Field(..., description="User ID who updated the integration")

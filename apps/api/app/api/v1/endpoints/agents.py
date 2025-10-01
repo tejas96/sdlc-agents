@@ -1,268 +1,179 @@
-"""Agent endpoints."""
+"""AI Agent API endpoints for read-only operations and streaming runs."""
 
-from typing import Any
+from typing import Annotated, Literal
 
-from fastapi import APIRouter, HTTPException, Query, status
-from sse_starlette.sse import EventSourceResponse
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sse_starlette import EventSourceResponse
+from starlette.responses import Response, StreamingResponse
 
-from app.api.deps import CurrentUser, DatabaseSession
-from app.crud.agent import agent_crud
-from app.models.agent import AgentCreate, AgentUpdate
-from app.schemas.agent import AgentListResponse, AgentResponse
-from app.services.agent_execution_service import agent_execution_service
+from app.agents.enums import AgentIdentifier, AgentModule
+from app.api.deps import get_agent_service, get_ai_agent_crud, get_current_active_user, validate_request_size
+from app.crud.ai_agent import AIAgentCRUD
+from app.models.user import User
+from app.schemas.agent import AIAgentListResponse, AIAgentResponse
+from app.schemas.agent_run import AgentRunRequest
+from app.schemas.session import SessionCreate, SessionResponse
+from app.services.agent_service import AgentService
+from app.streaming.ai_v4_adapter import events_to_ai_v4
+from app.streaming.sse_adapter import events_to_sse, events_to_ui_message_stream
 
 router = APIRouter()
 
 
-@router.get("/", response_model=AgentListResponse)
-async def get_agents(
-    db: DatabaseSession,
-    current_user: CurrentUser,
-    skip: int = Query(default=0, ge=0, description="Number of records to skip"),
-    limit: int = Query(default=100, ge=1, le=1000, description="Number of records to retrieve"),
-    project_id: int | None = Query(default=None, description="Filter by project ID"),
-    agent_type: str | None = Query(default=None, description="Filter by agent type"),
-) -> Any:
-    """Get all agents for the current user."""
-    if project_id:
-        agents = await agent_crud.get_by_project(db, project_id=project_id, skip=skip, limit=limit)
-    elif agent_type:
-        agents = await agent_crud.get_by_type(db, agent_type=agent_type, skip=skip, limit=limit)
-    else:
-        agents = await agent_crud.get_by_owner(db, owner_id=current_user.id, skip=skip, limit=limit)
+@router.get(
+    "",
+    response_model=AIAgentListResponse,
+    summary="List AI agents",
+    description="Get all available AI agents with optional filtering.",
+)
+async def list_agents(
+    *,
+    skip: int = Query(0, ge=0, description="Number of records to skip for pagination"),
+    limit: int = Query(100, ge=1, le=100, description="Maximum number of records to return"),
+    identifier: AgentIdentifier | None = Query(None, description="Filter by agent identifier"),
+    module: AgentModule | None = Query(None, description="Filter by agent module"),
+    is_active: bool | None = Query(None, description="Filter by active status"),
+    search: str | None = Query(None, description="Search in agent name and description"),
+    tags: str | None = Query(None, description="Comma-separated list of tags to filter by"),
+    agent_crud: Annotated[AIAgentCRUD, Depends(get_ai_agent_crud)],
+) -> AIAgentListResponse:
+    """Get all available AI agents with optional filtering."""
 
-    total = await agent_crud.count(db)
+    # Parse tags from comma-separated string
+    tag_list = None
+    if tags:
+        tag_list = [tag.strip() for tag in tags.split(",") if tag.strip()]
 
-    return {
-        "agents": agents,
-        "total": total,
-        "page": skip // limit + 1,
-        "size": limit,
-        "pages": (total + limit - 1) // limit,
+    # Get agents from database
+    agents = await agent_crud.list_agents(
+        identifier=identifier,
+        module=module,
+        is_active=is_active,
+        search=search,
+        tags=tag_list,
+        skip=skip,
+        limit=limit,
+    )
+
+    # Convert to response models
+    agent_responses = [AIAgentResponse.model_validate(agent) for agent in agents]
+
+    # Calculate pagination metadata
+    total = len(agent_responses)  # This is a simplified approach
+    has_more = len(agent_responses) == limit  # Simplified check
+
+    return AIAgentListResponse(
+        results=agent_responses,
+        total=total,
+        skip=skip,
+        limit=limit,
+        has_more=has_more,
+    )
+
+
+@router.get(
+    "/{agent_id}",
+    response_model=AIAgentResponse,
+    summary="Get AI agent by ID",
+    description="Get detailed information about a specific AI agent by its ID.",
+)
+async def get_agent(
+    *,
+    agent_id: int,
+    agent_crud: Annotated[AIAgentCRUD, Depends(get_ai_agent_crud)],
+) -> AIAgentResponse:
+    """Get detailed information about a specific AI agent."""
+    agent = await agent_crud.get_agent_by_id(agent_id)
+    if not agent:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agent not found")
+    return AIAgentResponse.model_validate(agent)
+
+
+@router.post(
+    "/{agent_type}/run",
+    summary="Run an agent session and stream results",
+    description=(
+        "Run an agent in an existing session and stream results. "
+        "You must create a session first using the /sessions endpoint. "
+        "Select protocol via the 'protocol' query param: 'v5' (AI SDK UI data stream), 'v4' (AI SDK v4 frames), "
+        "or 'sse' (Server-Sent Events)."
+    ),
+)
+async def run_agent(
+    *,
+    agent_type: AgentIdentifier,
+    body: AgentRunRequest,
+    session_id: int = Query(..., description="Session ID to run the agent in"),
+    protocol: Literal["v5", "v4", "sse"] = Query(
+        "v4",
+        description=(
+            "Streaming protocol: 'v5' (AI SDK UI data stream), 'v4' (AI SDK v4 frames), or 'sse' (Server-Sent Events)"
+        ),
+    ),
+    include_event_names: bool = Query(
+        True, description="For protocol='sse': if true, include 'event:' field; if false, send data-only messages"
+    ),
+    agent_service: Annotated[AgentService, Depends(get_agent_service)],
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    _size_guard: Annotated[None, Depends(validate_request_size)],
+) -> Response:
+    """Run an agent in an existing session."""
+
+    # Use the start method which now handles existing sessions
+    events = await agent_service.run(
+        user_id=current_user.id,  # type: ignore[arg-type]
+        agent_identifier=agent_type,
+        session_id=session_id,
+        messages=body.messages,
+    )
+
+    base_headers = {
+        "x-session-id": str(session_id),
+        "Cache-Control": "no-cache, no-store, must-revalidate",
+        "Pragma": "no-cache",
+        "X-Accel-Buffering": "no",
+        "Connection": "keep-alive",
     }
 
-
-@router.get("/{agent_id}", response_model=AgentResponse)
-async def get_agent(
-    agent_id: int,
-    db: DatabaseSession,
-    current_user: CurrentUser,
-) -> Any:
-    """Get a specific agent by ID."""
-    agent = await agent_crud.get(db, id=agent_id)
-    if not agent:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Agent not found",
+    if protocol == "sse":
+        return EventSourceResponse(
+            events_to_sse(events, data_only=not include_event_names), headers=base_headers, ping=30
         )
 
-    # Check if user owns the agent (or is superuser)
-    if agent.owner_id != current_user.id and not current_user.is_superuser:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not enough permissions to access this agent",
-        )
+    if protocol == "v5":
+        headers = {
+            **base_headers,
+            "x-vercel-ai-ui-message-stream": "v1",
+        }
+        return EventSourceResponse(events_to_ui_message_stream(events), headers=headers, ping=30)
 
-    return agent
+    headers = {**base_headers, "x-vercel-ai-data-stream": "v1"}
+    return StreamingResponse(events_to_ai_v4(events), media_type="text/plain", headers=headers)
 
 
-@router.post("/", response_model=AgentResponse, status_code=status.HTTP_201_CREATED)
-async def create_agent(
-    agent_in: AgentCreate,
-    db: DatabaseSession,
-    current_user: CurrentUser,
-) -> Any:
-    """Create a new agent."""
-    # Check if agent slug already exists
-    existing_agent = await agent_crud.get_by_slug(db, slug=agent_in.slug)
-    if existing_agent:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="An agent with this slug already exists",
-        )
+@router.post(
+    "/{agent_type}/sessions",
+    response_model=SessionResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create a new session for an agent",
+    description="Create a new session for the specified agent with an associated project and workspace.",
+)
+async def create_session(
+    *,
+    agent_type: AgentIdentifier,
+    body: SessionCreate,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    agent_service: Annotated[AgentService, Depends(get_agent_service)],
+) -> SessionResponse:
+    """Create a new session for the specified agent."""
 
-    agent = await agent_crud.create(
-        db,
-        obj_in=agent_in,
-        owner_id=current_user.id,
-        created_by=current_user.id,
-        updated_by=current_user.id,
+    # Delegate to agent service
+    session_data = await agent_service.create_session(
+        user_id=current_user.id,  # type: ignore
+        agent_identifier=agent_type.value,  # Pass the string value
+        project_name=body.project_name,
+        mcps=body.mcps,
+        custom_properties=body.custom_properties,
     )
-    return agent
 
-
-@router.put("/{agent_id}", response_model=AgentResponse)
-async def update_agent(
-    agent_id: int,
-    agent_update: AgentUpdate,
-    db: DatabaseSession,
-    current_user: CurrentUser,
-) -> Any:
-    """Update an agent."""
-    agent = await agent_crud.get(db, id=agent_id)
-    if not agent:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Agent not found",
-        )
-
-    # Check if user owns the agent (or is superuser)
-    if agent.owner_id != current_user.id and not current_user.is_superuser:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not enough permissions to update this agent",
-        )
-
-    # Check slug uniqueness if being updated
-    if agent_update.slug and agent_update.slug != agent.slug:
-        existing_agent = await agent_crud.get_by_slug(db, slug=agent_update.slug)
-        if existing_agent:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="An agent with this slug already exists",
-            )
-
-    agent = await agent_crud.update(
-        db,
-        db_obj=agent,
-        obj_in=agent_update.dict(exclude_unset=True) | {"updated_by": current_user.id},
-    )
-    return agent
-
-
-@router.delete("/{agent_id}")
-async def delete_agent(
-    agent_id: int,
-    db: DatabaseSession,
-    current_user: CurrentUser,
-) -> dict[str, str]:
-    """Delete an agent."""
-    agent = await agent_crud.get(db, id=agent_id)
-    if not agent:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Agent not found",
-        )
-
-    # Check if user owns the agent (or is superuser)
-    if agent.owner_id != current_user.id and not current_user.is_superuser:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not enough permissions to delete this agent",
-        )
-
-    await agent_crud.remove(db, id=agent_id)
-    return {"message": "Agent deleted successfully"}
-
-
-@router.post("/{agent_id}/execute")
-async def execute_agent(
-    agent_id: int,
-    execution_data: dict[str, Any],
-    db: DatabaseSession,
-    current_user: CurrentUser,
-) -> EventSourceResponse:
-    """Execute an agent with streaming responses."""
-    agent = await agent_crud.get(db, id=agent_id)
-    if not agent:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Agent not found",
-        )
-
-    # Check if user owns the agent (or is superuser)
-    if agent.owner_id != current_user.id and not current_user.is_superuser:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not enough permissions to execute this agent",
-        )
-
-    # Extract messages from execution data
-    messages = execution_data.get("messages", [])
-    mcp_configs = execution_data.get("mcp_configs", {})
-
-    async def event_stream():
-        """Stream agent execution events."""
-        try:
-            async for chunk in agent_execution_service.execute_agent(
-                agent=agent,
-                session=db,
-                messages=messages,
-                user_id=current_user.id,
-                mcp_configs=mcp_configs,
-            ):
-                yield {
-                    "event": "agent_response",
-                    "data": chunk
-                }
-        except Exception as e:
-            yield {
-                "event": "error",
-                "data": {"error": str(e)}
-            }
-
-    return EventSourceResponse(event_stream())
-
-
-@router.get("/{agent_id}/executions")
-async def get_agent_executions(
-    agent_id: int,
-    db: DatabaseSession,
-    current_user: CurrentUser,
-) -> list[dict[str, Any]]:
-    """Get execution history for an agent."""
-    agent = await agent_crud.get(db, id=agent_id)
-    if not agent:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Agent not found",
-        )
-
-    # Check permissions
-    if agent.owner_id != current_user.id and not current_user.is_superuser:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not enough permissions to access this agent",
-        )
-
-    # Get active executions for this agent
-    executions = await agent_execution_service.list_active_executions(current_user.id)
-    agent_executions = [
-        exec_data for exec_data in executions
-        if exec_data.get("agent_id") == agent_id
-    ]
-
-    return agent_executions
-
-
-@router.post("/{agent_id}/executions/{execution_id}/cancel")
-async def cancel_agent_execution(
-    agent_id: int,
-    execution_id: str,
-    db: DatabaseSession,
-    current_user: CurrentUser,
-) -> dict[str, str]:
-    """Cancel an active agent execution."""
-    agent = await agent_crud.get(db, id=agent_id)
-    if not agent:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Agent not found",
-        )
-
-    # Check permissions
-    if agent.owner_id != current_user.id and not current_user.is_superuser:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not enough permissions to cancel this execution",
-        )
-
-    # Cancel execution
-    cancelled = await agent_execution_service.cancel_execution(execution_id)
-    if not cancelled:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Execution not found or already completed",
-        )
-
-    return {"message": "Execution cancelled successfully"}
+    return SessionResponse(**session_data)

@@ -5,110 +5,71 @@ services:
       dockerfile: Dockerfile
     ports:
       - "3000:3000"
+    env_file:
+      - ./apps/web/.env
     environment:
-      - NEXT_PUBLIC_API_URL=http://api:8001/api/v1
-      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1
     depends_on:
       - api
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
+    restart: always
     networks:
-      - sdlc_agents_network
+      - optima_ai_network
 
   api:
     build:
       context: ./apps/api
       dockerfile: Dockerfile
     ports:
-      - "8001:8001"
+      - "8000:8000"
     volumes:
       - ./apps/api:/app
+    env_file:
+      - ./apps/api/.env
     environment:
-      # Database Configuration
-      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/sdlc_agents
-      # Redis Configuration
-      - REDIS_URL=redis://redis:6379/0
-      - CELERY_BROKER_URL=redis://redis:6379/1
-      - CELERY_RESULT_BACKEND=redis://redis:6379/1
-      # CORS Configuration
-      - CORS_ORIGINS=http://localhost:3000,http://web:3000
-      # Security Configuration
-      - SECRET_KEY=your-super-secret-key-change-in-production
-      - ENCRYPTION_KEY=your-encryption-key-32-chars-long
       # Startup configuration
       - STARTUP_LOCK_ID=424242
       - DB_CONNECT_MAX_RETRIES=30
       - DB_CONNECT_DELAY_SECONDS=2.0
+      - DATABASE_URL=postgresql+asyncpg://postgres:OptimaAI2024!@host.docker.internal:5435/optima_ai
       - AGENTS_DIR=/app/workspaces/
-      - PROJECTS_DIR=/app/projects/
-      # Monitoring Configuration
-      - PROMETHEUS_ENABLED=true
-      - SENTRY_ENABLED=false
-      # Performance Configuration
-      - MAX_CONCURRENT_AGENTS=5
-      - AGENT_TIMEOUT_MINUTES=30
     depends_on:
       postgres:
         condition: service_healthy
-      redis:
-        condition: service_healthy
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
     networks:
-      - sdlc_agents_network
+      - optima_ai_network
 
   postgres:
     image: postgres:15-alpine
-    container_name: sdlc_agents_postgres
+    container_name: optima_ai_postgres
     environment:
-      POSTGRES_DB: sdlc_agents
+      POSTGRES_DB: optima_ai
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_PASSWORD: OptimaAI2024!
       POSTGRES_INITDB_ARGS: "--locale=C.UTF-8"
       LC_ALL: C.UTF-8
       LANG: C.UTF-8
     ports:
-      - "5433:5432"
+      - "5435:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d sdlc_agents"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d optima_ai"]
       interval: 10s
       timeout: 5s
       retries: 5
     networks:
-      - sdlc_agents_network
-
-  # Optional: Add Redis for caching and task queues
-  redis:
-    image: redis:7-alpine
-    container_name: sdlc_agents_redis
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-    networks:
-      - sdlc_agents_network
+      - optima_ai_network
 
 volumes:
   postgres_data:
-  redis_data:
 
 networks:
-  sdlc_agents_network:
+  optima_ai_network:
     driver: bridge

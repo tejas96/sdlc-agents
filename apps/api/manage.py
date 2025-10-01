@@ -14,7 +14,11 @@ from alembic.config import Config
 from alembic.util import CommandError
 from app.core.config import Paths, get_settings
 from app.core.database import MODEL_PATHS
+from app.db.utils import acquire_advisory_lock, release_advisory_lock, wait_for_database
 from app.utils import get_logger
+from app.utils.crypto import decrypt_text, encrypt_text
+from seeds.seed_agents import seed_agents_from_file
+from seeds.seed_users import seed_users_from_file
 
 cli = typer.Typer()
 logger = get_logger(__name__)
@@ -205,53 +209,97 @@ def reset(
 
 
 @cli.command()
-def create_user(
-    email: str = typer.Option(..., help="User email"),
-    username: str = typer.Option(..., help="Username"),
-    password: str = typer.Option(..., help="Password"),
-    full_name: str = typer.Option(None, help="Full name"),
-    is_superuser: bool = typer.Option(False, help="Create superuser"),
-):
-    """Create a new user"""
-    async def _create_user():
-        from app.core.database import get_async_session
-        from app.crud.user import user_crud
-        from app.models.user import UserCreate
+def prestart(
+    no_migrate: bool = typer.Option(False, "--no-migrate", help="Skip database migrations"),
+    no_seed: bool = typer.Option(False, "--no-seed", help="Skip database seeding"),
+) -> None:
+    """Run prestart routine: wait for DB, acquire lock, migrate, seed."""
 
-        user_in = UserCreate(
-            email=email,
-            username=username,
-            password=password,
-            full_name=full_name,
-            is_active=True,
-        )
+    async def _run() -> None:
+        # Get configuration from environment
+        max_retries = int(os.getenv("DB_CONNECT_MAX_RETRIES", "20"))
+        delay_seconds = float(os.getenv("DB_CONNECT_DELAY_SECONDS", "1.0"))
+        lock_id = int(os.getenv("STARTUP_LOCK_ID", "424242"))
 
-        async with get_async_session() as db:
-            # Check if user already exists
-            existing_user = await user_crud.get_by_email(db, email=email)
-            if existing_user:
-                typer.echo(f"❌ User with email {email} already exists")
-                raise typer.Exit(code=1)
+        logger.info("🚀 Starting prestart routine...")
 
-            existing_user = await user_crud.get_by_username(db, username=username)
-            if existing_user:
-                typer.echo(f"❌ User with username {username} already exists")
-                raise typer.Exit(code=1)
+        try:
+            # Step 1: Wait for database
+            logger.info("⏳ Waiting for database...")
+            await wait_for_database(max_retries=max_retries, delay_seconds=delay_seconds)
 
-            # Create user
-            user = await user_crud.create(db, obj_in=user_in)
-            
-            if is_superuser:
-                user.is_superuser = True
-                await user_crud.update(db, db_obj=user, obj_in={"is_superuser": True})
+            # Step 2: Acquire advisory lock
+            logger.info(f"🔒 Acquiring advisory lock {lock_id}...")
+            lock_acquired = await acquire_advisory_lock(lock_id)
 
-            typer.echo(f"✅ User created successfully:")
-            typer.echo(f"   ID: {user.id}")
-            typer.echo(f"   Email: {user.email}")
-            typer.echo(f"   Username: {user.username}")
-            typer.echo(f"   Superuser: {user.is_superuser}")
+            try:
+                # Step 3: Run migrations
+                if not no_migrate:
+                    # Run the blocking upgrade() in a thread to avoid calling
+                    # `asyncio.run()` from within an already running event loop.
+                    await asyncio.to_thread(upgrade)
+                else:
+                    logger.info("⏭️  Skipping database migrations")
 
-    asyncio.run(_create_user())
+                # Step 4: Run seeding
+                if not no_seed:
+                    logger.info("🌱 Running database seeding...")
+
+                    # Seed users
+                    user_file_path = Paths.API_DIR / "seeds" / "data" / "users.json"
+                    user_result = await seed_users_from_file(user_file_path)
+                    user_total = user_result["created"] + user_result["skipped"] + user_result["errors"]
+                    typer.echo(
+                        f"👥 User seeding complete: {user_result['created']} created, {user_result['skipped']} skipped, {user_result['errors']} errors out of {user_total} total"
+                    )
+
+                    # Seed agents
+                    agent_file_path = Paths.API_DIR / "seeds" / "data" / "agents.json"
+                    agent_result = await seed_agents_from_file(agent_file_path)
+                    agent_total = agent_result["created"] + agent_result["skipped"] + agent_result["errors"]
+                    typer.echo(
+                        f"🤖 Agent seeding complete: {agent_result['created']} created, {agent_result['skipped']} skipped, {agent_result['errors']} errors out of {agent_total} total"
+                    )
+
+                    if user_result["errors"] > 0 or agent_result["errors"] > 0:
+                        raise typer.Exit(code=1)
+                else:
+                    logger.info("⏭️  Skipping database seeding")
+
+            finally:
+                # Step 5: Release advisory lock
+                if lock_acquired:
+                    await release_advisory_lock(lock_id)
+
+            logger.info("✅ Prestart routine completed successfully")
+
+        except Exception as e:
+            logger.error(f"❌ Prestart routine failed: {e}")
+            raise typer.Exit(code=1) from e
+
+    asyncio.run(_run())
+
+
+@cli.command("encrypt-password")
+def cli_encrypt_password(password: str) -> None:
+    """Encrypt a plaintext password using SECRET_KEY and print ciphertext.
+
+    Example:
+        python manage.py encrypt-password "MySecret!"
+    """
+    cipher = encrypt_text(password)
+    typer.echo(cipher)
+
+
+@cli.command("decrypt-password")
+def cli_decrypt_password(ciphertext: str) -> None:
+    """Decrypt a ciphertext password using SECRET_KEY and print plaintext.
+
+    Example:
+        python manage.py decrypt-password "<ciphertext>"
+    """
+    plain = decrypt_text(ciphertext)
+    typer.echo(plain)
 
 
 def main():
@@ -261,7 +309,7 @@ def main():
     except TypeError as e:
         if "Parameter.make_metavar()" in str(e):
             # Fallback for typer compatibility issue
-            print("SDLC Agents Management Commands:")
+            print("Application Commands:")
             print("  run         - Run the FastAPI application")
             print("\nDatabase Management Commands:")
             print("  upgrade     - Apply database migrations")
@@ -272,9 +320,10 @@ def main():
             print("  history     - Show migration history")
             print("  stamp       - Stamp database with revision")
             print("  check       - Check migration status")
+            print("  init        - Initialize database")
             print("  reset       - Reset database (destructive)")
-            print("\nUser Management Commands:")
-            print("  create-user - Create a new user")
+            print("\nSeeding Commands:")
+            print("  prestart    - Wait for DB, migrate, and seed")
             print("\nUse: python manage.py <command> --help for more info")
         else:
             print(f"❌ Unexpected error: {e}")

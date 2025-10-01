@@ -1,7 +1,7 @@
 import asyncio
 import os
 from collections.abc import AsyncGenerator, Generator
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -75,26 +75,58 @@ def override_get_async_session(db_session: AsyncSession) -> Generator[None, None
 
 
 @pytest.fixture
+def mock_claude_response() -> MagicMock:
+    """Mock Claude API response fixture"""
+    mock_response = MagicMock()
+    mock_response.content = [
+        MagicMock(
+            text="Here's a binary search implementation:\n\n```python\ndef binary_search(arr, target):\n    left, right = 0, len(arr) - 1\n    # ... implementation\n```"
+        )
+    ]
+    return mock_response
+
+
+@pytest.fixture
+def mock_text_block() -> MagicMock:
+    """Mock TextBlock for testing"""
+    block = MagicMock()
+    block.text = "Test response content"
+    return block
+
+
+@pytest.fixture(autouse=True)
+def mock_claude_sdk() -> Generator[None, None, None]:
+    """Auto-use fixture to mock Claude SDK globally"""
+    with patch("app.services.claude_service.query") as mock_query:
+
+        async def mock_async_generator() -> AsyncGenerator[MagicMock, None]:
+            # System message
+            mock_system = MagicMock()
+            mock_system.__class__.__name__ = "SystemMessage"
+            yield mock_system
+
+            # Assistant message with code
+            mock_assistant = MagicMock()
+            mock_assistant.__class__.__name__ = "AssistantMessage"
+            mock_assistant.content = [MagicMock(text="Here's your code assistance response.")]
+            yield mock_assistant
+
+        mock_query.return_value = mock_async_generator()
+        yield
+
+
+@pytest.fixture
 def mock_settings() -> Generator[MagicMock, None, None]:
     """Mock settings fixture"""
-    from unittest.mock import patch
-    
     with patch("app.core.config.get_settings") as mock_get_settings:
         mock_settings_obj = MagicMock()
         mock_settings_obj.DATABASE_URL = "sqlite+aiosqlite:///:memory:"
+        mock_settings_obj.CLAUDE_PERMISSION_MODE = "bypassPermissions"
+        mock_settings_obj.CLAUDE_REQUEST_TIMEOUT = 300
         mock_settings_obj.SECRET_KEY = "test-secret-key"
         mock_settings_obj.ALGORITHM = "HS256"
         mock_settings_obj.ACCESS_TOKEN_EXPIRE_MINUTES = 30
         mock_settings_obj.REFRESH_TOKEN_EXPIRE_DAYS = 7
-        mock_settings_obj.PROJECT_NAME = "SDLC Agents API"
-        mock_settings_obj.VERSION = "1.0.0"
-        mock_settings_obj.API_V1_STR = "/api/v1"
-        mock_settings_obj.ENVIRONMENT = "test"
-        mock_settings_obj.DEBUG = True
-        mock_settings_obj.LOG_LEVEL = "DEBUG"
-        mock_settings_obj.PORT = 8001
-        mock_settings_obj.ENABLE_DOCS = True
-        mock_settings_obj.ENABLE_REDOC = True
         mock_get_settings.return_value = mock_settings_obj
         yield mock_settings_obj
 
@@ -106,51 +138,3 @@ def event_loop() -> Generator[asyncio.AbstractEventLoop, None, None]:
     loop = asyncio.get_event_loop_policy().new_event_loop()
     yield loop
     loop.close()
-
-
-# Test data fixtures
-@pytest.fixture
-async def test_user(db_session: AsyncSession):
-    """Create a test user."""
-    from app.models.user import User, Provider
-    
-    user = User(
-        name="Test User",
-        email="test@example.com",
-        provider=Provider.PASS,
-        is_active=True,
-    )
-    db_session.add(user)
-    await db_session.commit()
-    await db_session.refresh(user)
-    return user
-
-
-@pytest.fixture
-async def test_agent(db_session: AsyncSession, test_user):
-    """Create a test agent."""
-    from app.models.agent import Agent, AgentType, AgentStatus
-    
-    agent = Agent(
-        name="Test Agent",
-        slug="test-agent",
-        description="A test agent",
-        agent_type=AgentType.CODE_REVIEWER,
-        status=AgentStatus.ACTIVE,
-        owner_id=test_user.id,
-        created_by=test_user.id,
-        updated_by=test_user.id,
-    )
-    db_session.add(agent)
-    await db_session.commit()
-    await db_session.refresh(agent)
-    return agent
-
-
-@pytest.fixture
-def auth_headers(test_user) -> dict:
-    """Create authentication headers for testing."""
-    # Mock JWT token for testing
-    return {
-        "Authorization": "Bearer test-token"
-    }

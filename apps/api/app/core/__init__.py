@@ -1,1 +1,1 @@
-"""Core application configuration and utilities."""
+# Core module for configuration, security, and database

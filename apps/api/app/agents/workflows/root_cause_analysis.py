@@ -1,319 +1,260 @@
-"""Root Cause Analysis Agent workflow implementation."""
+"""Root Cause Analysis agent workflow implementation."""
 
 from collections.abc import AsyncIterator
+from pathlib import Path
 from typing import Any
 
-from app.agents.enums import AgentIdentifier, WorkflowStep
+from app.agents.enums import AgentIdentifier
 from app.agents.workflows.base import AgentWorkflow
+from app.agents.workflows.factory import register
+from app.models.user_agent_session import UserAgentSession
+from app.services.integration_service import IntegrationService
+from app.utils.helpers import try_parse_json_content
+from app.utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 
+@register(AgentIdentifier.ROOT_CAUSE_ANALYSIS)
 class RootCauseAnalysisWorkflow(AgentWorkflow):
-    """AI agent for intelligent incident investigation and root cause analysis."""
+    """Root Cause Analysis workflow using Claude orchestrator with monitoring integrations."""
 
+    # Used by base to select templates folder: app/agents/templates/root_cause_analysis/*
     identifier = AgentIdentifier.ROOT_CAUSE_ANALYSIS
-    module = "quality_assurance"
 
-    async def prepare(self, *, session: Any, messages: list[dict[str, Any]]) -> AsyncIterator[dict[str, Any]]:
-        """Prepare workspace and collect incident data for analysis."""
-        yield self._emit_step_update(WorkflowStep.PREPARE, "Initializing root cause analysis workspace")
-
-        # Create workspace directory
-        self.workspace_dir.mkdir(parents=True, exist_ok=True)
-
-        # Extract incident data from messages
-        incident_data = self._extract_incident_data_from_messages(messages)
-
-        yield self._emit_progress_update(25, f"Collected {len(incident_data.get('data_sources', []))} data sources")
-
-        # Analyze incident timeline and impact
-        incident_analysis = await self._analyze_incident_context(incident_data)
-
-        yield self._emit_step_update(
-            WorkflowStep.PREPARE, "Incident data collected and analyzed", {"incident": incident_analysis}
+    def __init__(
+        self,
+        *,
+        workspace_dir: Path,
+        mcp_configs: dict[Any, Any],
+        integration_service: IntegrationService,
+        system_prompt: str | None = None,
+        llm_session_id: str | None = None,
+    ) -> None:
+        """Initialize workflow with required parameters."""
+        super().__init__(
+            workspace_dir=workspace_dir,
+            mcp_configs=mcp_configs,
+            integration_service=integration_service,
+            system_prompt=system_prompt,
+            llm_session_id=llm_session_id,
         )
+        # Track file-op tool calls until their corresponding tool_result arrives
+        self._pending_artifact_ops: dict[str, dict[str, Any]] = {}
 
-    async def run(self, *, session: Any, messages: list[dict[str, Any]]) -> AsyncIterator[dict[str, Any]]:
-        """Execute root cause analysis using Claude."""
-        yield self._emit_step_update(WorkflowStep.EXECUTE, "Performing root cause analysis")
+    async def _prepare_system_prompt(self, *, session: UserAgentSession, **extra: Any) -> str:
+        """
+        Prepare the system prompt for RCA workflow.
+        RCA only uses the main system template, no followup system prompt.
+        """
+        return await super()._prepare_system_prompt(session=session, **extra)
 
-        # Prepare prompts
-        system_prompt = await self._prepare_system_prompt(
-            workspace_dir=self.workspace_dir,
-            analysis_type="root_cause",
-            investigation_methods=["timeline_analysis", "log_correlation", "dependency_mapping", "pattern_recognition"],
-        )
+    async def prepare(
+        self, *, session: UserAgentSession, messages: list[dict[str, Any]]
+    ) -> AsyncIterator[dict[str, Any]]:
+        """Prepare workspace for RCA by setting up integrations and collecting data sources."""
+        # Check if session already exists
+        if session.llm_session_id:
+            logger.info(f"Session {session.id} already has an LLM session ID: {session.llm_session_id}")
+            logger.info("Skipping prepare and running directly")
+            return
 
-        user_prompt = await self._prepare_user_prompt(
-            incident_data=messages,
-            analysis_focus=["error_patterns", "system_dependencies", "timing_correlations", "configuration_changes"],
-        )
+        logger.info(f"Preparing workspace {self.workspace_dir} for root cause analysis")
 
-        # Prepare messages for Claude
-        claude_messages = [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}]
+        # Extract incident and related data from session properties
+        properties = session.custom_properties or {}
+        incident_data = properties.get("incident")
+        logs_data = properties.get("logs", [])
+        source_code_data = properties.get("source_code", [])
+        docs_data = properties.get("docs", [])
 
-        yield self._emit_progress_update(60, "Analyzing incident data with AI")
+        if not incident_data:
+            logger.error("No incident data provided for RCA analysis")
+            raise ValueError("Incident data is required for Root Cause Analysis")
 
-        # Stream Claude response
-        async for chunk in self._stream_claude_response(claude_messages):
-            yield chunk
+        try:
+            # Create workspace directory structure for RCA artifacts
+            rca_dir = self.workspace_dir / "artifacts"
+            rca_dir.mkdir(parents=True, exist_ok=True)
+            solutions_dir = rca_dir / "solutions"
+            solutions_dir.mkdir(parents=True, exist_ok=True)
 
-    async def finalize(self, *, session: Any, messages: list[dict[str, Any]]) -> AsyncIterator[dict[str, Any]]:
-        """Generate root cause analysis report and remediation plan."""
-        yield self._emit_step_update(WorkflowStep.FINALIZE, "Generating analysis report and remediation plan")
+            # Yield preparation events
+            yield {
+                "type": "tool_call",
+                "toolCallId": "rca_prepare",
+                "toolName": "rca_preparation",
+                "args": {
+                    "incident_id": incident_data.get("id", "unknown"),
+                    "prompt": "Preparing workspace for Root Cause Analysis...",
+                },
+            }
 
-        # Save analysis artifacts
-        analysis_files = await self._save_analysis_artifacts()
+            # Log the available data sources for context
+            logger.info(
+                "RCA data sources available",
+                extra={
+                    "incident_provider": incident_data.get("provider"),
+                    "logs_count": len(logs_data),
+                    "repos_count": len(source_code_data),
+                    "docs_count": len(docs_data),
+                },
+            )
 
-        # Generate remediation recommendations
-        remediation_plan = await self._generate_remediation_plan()
+            yield {
+                "type": "tool_result",
+                "toolCallId": "rca_prepare",
+                "result": f"Workspace prepared for incident {incident_data.get('id', 'unknown')}. "
+                f"Data sources: {len(logs_data)} log sources, {len(source_code_data)} repositories, "
+                f"{len(docs_data)} documentation sources.",
+            }
 
-        # Create incident post-mortem template
-        postmortem_template = await self._create_postmortem_template()
+            logger.info("RCA workspace preparation completed successfully")
 
-        yield self._emit_progress_update(95, "Root cause analysis completed")
+        except Exception as e:
+            logger.error(f"Failed to prepare RCA workspace: {e}")
+            raise
 
-        yield self._emit_step_update(
-            WorkflowStep.FINALIZE,
-            "Root cause analysis completed successfully",
-            {
-                "analysis_files": analysis_files,
-                "remediation_plan": remediation_plan,
-                "postmortem_template": postmortem_template,
-            },
-        )
+    async def _maybe_intercept_artifact_event(self, response: dict[str, Any]) -> tuple[bool, dict[str, Any] | None]:
+        """Intercept file operation tool events and emit normalized artifact events.
 
-    def _extract_incident_data_from_messages(self, messages: list[dict[str, Any]]) -> dict[str, Any]:
-        """Extract incident data from messages (logs, metrics, alerts, etc.)."""
-        incident_data: dict[str, Any] = {
-            "incident_id": None,
-            "start_time": None,
-            "end_time": None,
-            "severity": "unknown",
-            "affected_services": [],
-            "error_logs": [],
-            "metrics": [],
-            "alerts": [],
-            "deployments": [],
-            "configuration_changes": [],
-            "user_reports": [],
-            "data_sources": [],
-        }
-
-        for message in messages:
-            msg_type = message.get("type", "")
-
-            if msg_type == "incident_report":
-                incident_data.update(
-                    {
-                        "incident_id": message.get("incident_id"),
-                        "start_time": message.get("start_time"),
-                        "end_time": message.get("end_time"),
-                        "severity": message.get("severity", "unknown"),
-                        "description": message.get("description"),
-                        "affected_services": message.get("affected_services", []),
+        Returns:
+            handled: Whether the caller should suppress the original `response`.
+            event: The replacement event to emit (if any). When None and handled is True,
+                   the original response should be suppressed with no replacement.
+        """
+        try:
+            rtype = response.get("type")
+            if rtype == "tool_call" and response.get("toolName") in {"create_file", "edit_file"}:
+                tool_call_id = str(response.get("toolCallId") or "")
+                args = response.get("args") or {}
+                file_path = str(args.get("file_path") or args.get("path") or "")
+                if tool_call_id and file_path:
+                    self._pending_artifact_ops[tool_call_id] = {
+                        "file_path": file_path,
+                        "tool_name": response.get("toolName"),
+                        "content": args.get("content"),
                     }
-                )
-                incident_data["data_sources"].append("incident_report")
+                    return True, None
 
-            elif msg_type == "error_logs":
-                incident_data["error_logs"].extend(message.get("logs", []))
-                incident_data["data_sources"].append("error_logs")
+            if rtype == "tool_result":
+                tool_call_id = str(response.get("toolCallId") or "")
+                pending = self._pending_artifact_ops.pop(tool_call_id, None)
+                if pending is not None:
+                    content = pending.get("content")
+                    if pending.get("tool_name") == "edit_file" and content is None:
+                        content = await self._read_file_content(pending.get("file_path", ""))
 
-            elif msg_type == "metrics_data":
-                incident_data["metrics"].extend(message.get("metrics", []))
-                incident_data["data_sources"].append("metrics")
+                    artifact = self._extract_artifact_metadata(
+                        file_path=str(pending.get("file_path", "")),
+                        content_str=content,
+                    )
+                    if artifact is not None:
+                        evt_type = f"data-{artifact.get('artifact_type')}"
+                        return True, {"type": evt_type, "data": artifact}
+                    return True, None
+        except Exception as intercept_exc:
+            logger.debug(f"Artifact event interception failed: {intercept_exc}")
+        return False, None
 
-            elif msg_type == "alerts":
-                incident_data["alerts"].extend(message.get("alerts", []))
-                incident_data["data_sources"].append("alerts")
+    async def run(self, *, session: UserAgentSession, messages: list[dict[str, Any]]) -> AsyncIterator[dict[str, Any]]:
+        """Run the root cause analysis workflow."""
+        try:
+            logger.info("Starting Root Cause Analysis workflow")
 
-            elif msg_type == "deployment_info":
-                incident_data["deployments"].extend(message.get("deployments", []))
-                incident_data["data_sources"].append("deployments")
+            # Call prepare
+            async for event in self.prepare(session=session, messages=messages):
+                yield event
 
-            elif msg_type == "config_changes":
-                incident_data["configuration_changes"].extend(message.get("changes", []))
-                incident_data["data_sources"].append("config_changes")
+            system_prompt = await self._prepare_system_prompt(session=session)
 
-            elif msg_type == "user_reports":
-                incident_data["user_reports"].extend(message.get("reports", []))
-                incident_data["data_sources"].append("user_reports")
+            if session.llm_session_id is None:
+                user_prompt = await super()._prepare_user_prompt(session=session, messages=messages)
+                messages[0]["content"] = user_prompt
 
-        return incident_data
+            # Stream responses from Claude Code SDK directly
+            logger.info("Invoking Claude Code SDK for RCA analysis")
+            async for response in self.orchestrator.run(messages, system_prompt=system_prompt):
+                handled, event = await self._maybe_intercept_artifact_event(response)  # type: ignore
+                if handled:
+                    if event is not None:
+                        yield event
+                        logger.info(
+                            f"Artifact event emitted after tool_result: {event.get('type')}",
+                            extra={"artifact": (event.get("data") or {}).get("artifact_id")},
+                        )
+                    continue
 
-    async def _analyze_incident_context(self, incident_data: dict[str, Any]) -> dict[str, Any]:
-        """Analyze incident context and impact."""
+                # Pass-through for all non-intercepted events
+                yield response
 
-        # Calculate incident duration
-        duration_minutes = 0
-        if incident_data.get("start_time") and incident_data.get("end_time"):
-            # Mock calculation - would parse actual timestamps
-            duration_minutes = 45  # Mock duration
+            logger.info("RCA Claude Code SDK invocation completed")
 
-        # Assess impact severity
-        impact_score = self._calculate_impact_score(incident_data)
+        except Exception as e:
+            logger.error(f"Root Cause Analysis workflow failed: {e}")
+            yield {"type": "finish", "data": {"finishReason": "error", "error": str(e)}}
 
-        # Identify potential causes
-        potential_causes = self._identify_potential_causes(incident_data)
+    async def finalize(
+        self, *, session: UserAgentSession, messages: list[dict[str, Any]]
+    ) -> AsyncIterator[dict[str, Any]]:
+        """Finalize RCA workflow by organizing artifacts."""
+        logger.info(f"Finalizing Root Cause Analysis workflow in {self.workspace_dir}")
+        # No-op finalize for now: yield nothing but keep async generator type
+        for _ in ():  # empty iterator keeps this as an async generator without unreachable code
+            yield {}
 
-        return {
-            "incident_id": incident_data.get("incident_id", "unknown"),
-            "duration_minutes": duration_minutes,
-            "severity": incident_data.get("severity", "unknown"),
-            "impact_score": impact_score,
-            "affected_services_count": len(incident_data.get("affected_services", [])),
-            "data_sources_available": len(set(incident_data.get("data_sources", []))),
-            "potential_causes": potential_causes,
-            "analysis_confidence": self._calculate_analysis_confidence(incident_data),
+    def _extract_artifact_metadata(self, *, file_path: str, content_str: Any) -> dict[str, Any] | None:
+        """Extract artifact metadata from an RCA file.
+
+        Returns a dict with the following keys:
+        - artifact_type: "index", "rca", or "solution"
+        - actual_file_path: actual file path
+        - file_path: normalized path relative to workspace
+        - filename: filename
+        - content_type: "json"
+        - artifact_id: RCA ID or solution ID
+        - content: parsed artifact content
+        """
+        normalized_path = self._relativize_to_workspace(file_path, anchor="artifacts/")
+        if not normalized_path.startswith("artifacts/"):
+            return None
+
+        path_obj = Path(normalized_path)
+        filename = path_obj.name
+        parent_dir = path_obj.parent.name
+        content_type = "json" if filename.endswith(".json") else "md"
+
+        # Only process JSON files for RCA artifacts
+        if not filename.endswith(".json"):
+            return None
+
+        parsed_content = try_parse_json_content(content_str)
+        if not parsed_content:
+            logger.warning(f"Failed to parse JSON content from {file_path}")
+            return None
+
+        artifact_id = None
+        artifact_type = None
+        # Determine artifact type and ID based on file location and name
+        if filename == "index.json":
+            artifact_id = parsed_content.get("incident_id", "incident")
+            artifact_type = "index"
+        elif filename == "rca.json":
+            artifact_id = parsed_content.get("rca_id", "rca")
+            artifact_type = "rca"
+        elif parent_dir == "solutions" and filename.startswith("sol-"):
+            artifact_id = parsed_content.get("solution_id")
+            artifact_type = "solution"
+        else:
+            return None
+
+        artifact = {
+            "artifact_type": artifact_type,
+            "actual_file_path": file_path,
+            "file_path": normalized_path,
+            "filename": filename,
+            "content_type": content_type,
+            "artifact_id": artifact_id,
+            "content": parsed_content,
         }
-
-    def _calculate_impact_score(self, incident_data: dict[str, Any]) -> int:
-        """Calculate incident impact score (0-100)."""
-        score = 0
-
-        # Severity weight
-        severity_weights = {"critical": 40, "high": 30, "medium": 20, "low": 10, "unknown": 15}
-        score += severity_weights.get(incident_data.get("severity", "unknown"), 15)
-
-        # Affected services weight
-        affected_services = len(incident_data.get("affected_services", []))
-        score += min(30, affected_services * 5)
-
-        # Error log volume weight
-        error_logs = len(incident_data.get("error_logs", []))
-        score += min(20, error_logs)
-
-        # Alert volume weight
-        alerts = len(incident_data.get("alerts", []))
-        score += min(10, alerts)
-
-        return min(100, score)
-
-    def _identify_potential_causes(self, incident_data: dict[str, Any]) -> list[dict[str, Any]]:
-        """Identify potential root causes based on available data."""
-        causes = []
-
-        # Check for recent deployments
-        if incident_data.get("deployments"):
-            causes.append(
-                {
-                    "category": "deployment",
-                    "description": "Recent deployment detected",
-                    "confidence": 0.8,
-                    "evidence": f"{len(incident_data['deployments'])} deployments",
-                }
-            )
-
-        # Check for configuration changes
-        if incident_data.get("configuration_changes"):
-            causes.append(
-                {
-                    "category": "configuration",
-                    "description": "Configuration changes detected",
-                    "confidence": 0.7,
-                    "evidence": f"{len(incident_data['configuration_changes'])} config changes",
-                }
-            )
-
-        # Check for high error volume
-        if len(incident_data.get("error_logs", [])) > 10:
-            causes.append(
-                {
-                    "category": "system_failure",
-                    "description": "High error log volume",
-                    "confidence": 0.6,
-                    "evidence": f"{len(incident_data['error_logs'])} error entries",
-                }
-            )
-
-        # Check for multiple affected services
-        if len(incident_data.get("affected_services", [])) > 1:
-            causes.append(
-                {
-                    "category": "infrastructure",
-                    "description": "Multiple services affected",
-                    "confidence": 0.5,
-                    "evidence": f"{len(incident_data['affected_services'])} services",
-                }
-            )
-
-        return causes
-
-    def _calculate_analysis_confidence(self, incident_data: dict[str, Any]) -> float:
-        """Calculate confidence level for the analysis."""
-        data_sources = len(set(incident_data.get("data_sources", [])))
-        max_sources = 7  # Total possible data source types
-
-        base_confidence = min(0.8, data_sources / max_sources)
-
-        # Boost confidence if we have key data sources
-        key_sources = ["incident_report", "error_logs", "metrics"]
-        available_key_sources = sum(1 for source in key_sources if source in incident_data.get("data_sources", []))
-
-        confidence_boost = (available_key_sources / len(key_sources)) * 0.2
-
-        return min(1.0, base_confidence + confidence_boost)
-
-    async def _save_analysis_artifacts(self) -> list[str]:
-        """Save root cause analysis artifacts."""
-        output_files = []
-
-        # Create analysis output directory
-        analysis_dir = self.workspace_dir / "rca_output"
-        analysis_dir.mkdir(exist_ok=True)
-
-        # Save root cause analysis report
-        rca_report_path = analysis_dir / "root_cause_analysis.md"
-        rca_report_path.write_text("# Root Cause Analysis Report\n\nGenerated by Root Cause Analysis Agent\n")
-        output_files.append(str(rca_report_path))
-
-        # Save timeline analysis
-        timeline_path = analysis_dir / "incident_timeline.md"
-        timeline_path.write_text(
-            "# Incident Timeline\n\n## Key Events\n- Incident start\n- First alerts\n- Resolution\n"
-        )
-        output_files.append(str(timeline_path))
-
-        # Save evidence collection
-        evidence_path = analysis_dir / "evidence_summary.json"
-        evidence_path.write_text('{"logs_analyzed": 50, "metrics_reviewed": 25, "alerts_correlated": 10}')
-        output_files.append(str(evidence_path))
-
-        return output_files
-
-    async def _generate_remediation_plan(self) -> dict[str, Any]:
-        """Generate remediation and prevention plan."""
-        return {
-            "immediate_actions": [
-                "Rollback recent deployment if applicable",
-                "Scale affected services",
-                "Monitor error rates closely",
-            ],
-            "short_term_fixes": ["Implement additional monitoring", "Add circuit breakers", "Improve error handling"],
-            "long_term_improvements": [
-                "Enhanced testing procedures",
-                "Automated deployment validation",
-                "Improved observability",
-            ],
-            "priority": "high",
-            "estimated_effort": "2-4 weeks",
-            "success_metrics": ["Reduce MTTR by 50%", "Prevent similar incidents", "Improve monitoring coverage"],
-        }
-
-    async def _create_postmortem_template(self) -> dict[str, Any]:
-        """Create incident post-mortem template."""
-        return {
-            "template_path": str(self.workspace_dir / "rca_output" / "postmortem_template.md"),
-            "sections": [
-                "Incident Summary",
-                "Timeline of Events",
-                "Root Cause Analysis",
-                "Impact Assessment",
-                "Response Evaluation",
-                "Remediation Actions",
-                "Prevention Measures",
-                "Lessons Learned",
-            ],
-            "status": "draft",
-            "review_required": True,
-        }
+        return artifact

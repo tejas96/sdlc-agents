@@ -1,223 +1,211 @@
-"""Code Reviewer Agent workflow implementation."""
+"""Code reviewer agent workflow implementation."""
 
 from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Any
 
-from app.agents.enums import AgentIdentifier, WorkflowStep
+from loguru import logger
+
+from app.agents.enums import AgentIdentifier
 from app.agents.workflows.base import AgentWorkflow
+from app.agents.workflows.factory import register
+from app.models.user_agent_session import UserAgentSession
+from app.services.integration_service import IntegrationService
+from app.utils.helpers import try_parse_json_content
 
 
+@register(AgentIdentifier.CODE_REVIEWER)
 class CodeReviewerWorkflow(AgentWorkflow):
-    """AI agent for comprehensive code review and pull request analysis."""
+    """Workflow for code review using Claude orchestrator to generate structured review outputs."""
 
     identifier = AgentIdentifier.CODE_REVIEWER
-    module = "quality_assurance"
+
+    def __init__(
+        self,
+        *,
+        workspace_dir: Path,
+        mcp_configs: dict[str, Any],
+        integration_service: IntegrationService,
+        system_prompt: str | None = None,
+        llm_session_id: str | None = None,
+    ) -> None:
+        """Initialize workflow with required parameters and renderer."""
+        super().__init__(
+            workspace_dir=workspace_dir,
+            mcp_configs=mcp_configs,
+            integration_service=integration_service,
+            system_prompt=system_prompt,
+            llm_session_id=llm_session_id,
+        )
+        # Track file-op tool calls until their corresponding tool_result arrives
+        self._pending_artifact_ops: dict[str, dict[str, Any]] = {}
 
     async def prepare(
-        self,
-        *,
-        session: Any,
-        messages: list[dict[str, Any]]
+        self, *, session: UserAgentSession, messages: list[dict[str, Any]]
     ) -> AsyncIterator[dict[str, Any]]:
-        """Prepare workspace and analyze code changes for review."""
-        yield self._emit_step_update(WorkflowStep.PREPARE, "Initializing code review workspace")
+        """Prepare the workspace for filesystem-first outputs.
 
-        # Create workspace directory
-        self.workspace_dir.mkdir(parents=True, exist_ok=True)
+        Ensures an `artifacts/` directory exists for organized review output structure.
+        """
+        logger.info(f"Preparing workspace {self.workspace_dir} for code review")
 
-        # Extract code changes from messages
-        code_changes = self._extract_code_changes_from_messages(messages)
+        try:
+            artifacts_dir = self.workspace_dir / "artifacts"
+            artifacts_dir.mkdir(parents=True, exist_ok=True)
 
-        yield self._emit_progress_update(30, f"Analyzing {len(code_changes)} code changes")
+            logger.info("Workspace prepared for code review outputs", extra={"artifacts_dir": str(artifacts_dir)})
+        except Exception as exc:
+            # Do not fail streaming if FS prep fails; LLM can still attempt writes
+            logger.warning(f"Workspace preparation skipped or partially completed: {exc}")
 
-        # Analyze change complexity and impact
-        change_analysis = await self._analyze_code_changes(code_changes)
+        for _ in ():
+            yield {}
 
-        yield self._emit_step_update(
-            WorkflowStep.PREPARE,
-            "Code review workspace prepared",
-            {"changes": change_analysis, "files_changed": len(code_changes)}
-        )
+    async def _maybe_intercept_artifact_event(self, response: dict[str, Any]) -> tuple[bool, dict[str, Any] | None]:
+        """Intercept file operation tool events and emit normalized artifact events.
 
-    async def run(
-        self,
-        *,
-        session: Any,
-        messages: list[dict[str, Any]]
-    ) -> AsyncIterator[dict[str, Any]]:
-        """Execute comprehensive code review using Claude."""
-        yield self._emit_step_update(WorkflowStep.EXECUTE, "Starting comprehensive code review")
+        Returns:
+            handled: Whether the caller should suppress the original `response`.
+            event: The replacement event to emit (if any). When None and handled is True,
+                   the original response should be suppressed with no replacement.
+        """
+        try:
+            rtype = response.get("type")
+            if rtype == "tool_call" and response.get("toolName") in {"create_file", "edit_file"}:
+                tool_call_id = str(response.get("toolCallId") or "")
+                args = response.get("args") or {}
+                file_path = str(args.get("file_path") or args.get("path") or "")
+                if tool_call_id and file_path:
+                    self._pending_artifact_ops[tool_call_id] = {
+                        "file_path": file_path,
+                        "tool_name": response.get("toolName"),
+                        "content": args.get("content"),
+                    }
+                    return True, None
 
-        # Prepare prompts
-        system_prompt = await self._prepare_system_prompt(
-            workspace_dir=self.workspace_dir,
-            review_type="comprehensive",
-            focus_areas=["security", "performance", "maintainability", "best_practices"]
-        )
+            if rtype == "tool_result":
+                tool_call_id = str(response.get("toolCallId") or "")
+                pending = self._pending_artifact_ops.pop(tool_call_id, None)
+                if pending is not None:
+                    content = pending.get("content")
+                    if pending.get("tool_name") == "edit_file" and content is None:
+                        content = await self._read_file_content(pending.get("file_path", ""))
 
-        user_prompt = await self._prepare_user_prompt(
-            code_changes=messages,
-            review_criteria=["code_quality", "test_coverage", "documentation", "security_vulnerabilities"]
-        )
+                    artifact = self._extract_artifact_metadata(
+                        file_path=str(pending.get("file_path", "")),
+                        content_str=content,
+                    )
+                    if artifact is not None:
+                        evt_type = f"data-{artifact.get('artifact_type')}"
+                        return True, {"type": evt_type, "data": artifact}
+                    return True, None
+        except Exception as intercept_exc:
+            logger.debug(f"Artifact event interception failed: {intercept_exc}")
+        return False, None
 
-        # Prepare messages for Claude
-        claude_messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt}
-        ]
+    async def run(self, *, session: UserAgentSession, messages: list[dict[str, Any]]) -> AsyncIterator[dict[str, Any]]:
+        """Run the code review workflow."""
+        try:
+            logger.info("Starting code review workflow")
 
-        yield self._emit_progress_update(60, "Performing AI-powered code review")
+            # Optional pre-steps
+            if session.llm_session_id is None:
+                async for event in self.prepare(session=session, messages=messages):
+                    yield event
 
-        # Stream Claude response
-        async for chunk in self._stream_claude_response(claude_messages):
-            yield chunk
+            system_prompt = await self._prepare_system_prompt(session=session)
+
+            # For new LLM sessions, construct the initial user prompt from template
+            if session.llm_session_id is None and messages:
+                user_prompt = await self._prepare_user_prompt(session=session)
+                messages[0]["content"] = user_prompt
+
+            # For follow-up sessions, construct the user prompt from template
+            if session.llm_session_id is not None and messages:
+                user_prompt = await self._prepare_user_followup_prompt(
+                    session=session, feedback=messages[-1]["content"]
+                )
+                messages[-1]["content"] = user_prompt
+
+            # Stream model responses
+            logger.info("Invoking Claude orchestrator for code review")
+            async for response in self.orchestrator.run(messages, system_prompt=system_prompt):
+                handled, event = await self._maybe_intercept_artifact_event(response)  # type: ignore
+                if handled:
+                    if event is not None:
+                        yield event
+                        logger.info(
+                            f"Artifact event emitted after tool_result: {event.get('type')}",
+                            extra={"artifact": (event.get("data") or {}).get("artifact_id")},
+                        )
+                    continue
+
+                # Pass-through for all non-intercepted events
+                yield response
+            logger.info("Code review workflow completed")
+
+        except Exception as exc:
+            logger.error(f"Code review workflow failed: {exc}")
+            yield {"type": "finish", "data": {"finishReason": "error", "error": str(exc)}}
 
     async def finalize(
-        self,
-        *,
-        session: Any,
-        messages: list[dict[str, Any]]
+        self, *, session: UserAgentSession, messages: list[dict[str, Any]]
     ) -> AsyncIterator[dict[str, Any]]:
-        """Save review results and generate report."""
-        yield self._emit_step_update(WorkflowStep.FINALIZE, "Generating code review report")
+        """Finalize workflow (no-op)."""
+        logger.info(f"Finalizing code review workflow in {self.workspace_dir}")
+        for _ in ():
+            yield {}
 
-        # Save review artifacts
-        review_files = await self._save_review_artifacts()
+    def _extract_artifact_metadata(self, *, file_path: str, content_str: Any) -> dict[str, Any] | None:
+        """Extract artifact metadata from a code review file.
 
-        # Generate summary metrics
-        review_metrics = await self._generate_review_metrics()
+        Returns a dict with the following keys:
+        - artifact_type: "index" or "comments"
+        - actual_file_path: actual file path
+        - file_path: normalized path relative to workspace
+        - filename: filename
+        - content_type: "json"
+        - artifact_id: file identifier
+        - content: parsed file content
+        """
+        normalized_path = self._relativize_to_workspace(file_path, anchor="artifacts/")
+        if not normalized_path.startswith("artifacts/"):
+            return None
 
-        yield self._emit_progress_update(95, "Code review completed")
+        path_obj = Path(normalized_path)
+        filename = path_obj.name
+        content_type = "json" if filename.endswith(".json") else "md"
 
-        yield self._emit_step_update(
-            WorkflowStep.FINALIZE,
-            "Code review completed successfully",
-            {
-                "review_files": review_files,
-                "metrics": review_metrics
-            }
-        )
+        # Only handle JSON files in artifacts directory
+        if not filename.endswith(".json"):
+            return None
 
-    def _extract_code_changes_from_messages(self, messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        """Extract code changes from messages (diff, files, etc.)."""
-        changes = []
-        for message in messages:
-            if message.get("type") == "code_diff":
-                changes.append({
-                    "file_path": message.get("file_path"),
-                    "diff": message.get("diff"),
-                    "additions": message.get("additions", 0),
-                    "deletions": message.get("deletions", 0),
-                    "change_type": message.get("change_type", "modified")
-                })
-            elif message.get("type") == "pull_request":
-                # Extract files from PR
-                for file_change in message.get("files", []):
-                    changes.append(file_change)
-        return changes
+        parsed_content = try_parse_json_content(content_str)
+        if not parsed_content:
+            logger.warning(f"Failed to parse JSON content from {file_path}")
+            return None
 
-    async def _analyze_code_changes(self, changes: list[dict[str, Any]]) -> dict[str, Any]:
-        """Analyze the complexity and impact of code changes."""
-        total_additions = sum(change.get("additions", 0) for change in changes)
-        total_deletions = sum(change.get("deletions", 0) for change in changes)
+        # Determine artifact type based on filename
+        artifact_type = None
+        artifact_id = None
 
-        # Categorize changes by file type
-        file_types = {}
-        for change in changes:
-            file_path = change.get("file_path", "")
-            extension = Path(file_path).suffix.lower()
-            file_types[extension] = file_types.get(extension, 0) + 1
-
-        # Assess complexity
-        complexity_score = min(100, (total_additions + total_deletions) // 10)
-
-        return {
-            "total_files": len(changes),
-            "total_additions": total_additions,
-            "total_deletions": total_deletions,
-            "net_changes": total_additions - total_deletions,
-            "file_types": file_types,
-            "complexity_score": complexity_score,
-            "complexity_level": self._get_complexity_level(complexity_score),
-            "review_priority": self._calculate_review_priority(changes)
-        }
-
-    def _get_complexity_level(self, score: int) -> str:
-        """Determine complexity level based on score."""
-        if score < 20:
-            return "low"
-        elif score < 50:
-            return "medium"
-        elif score < 80:
-            return "high"
+        if filename == "index.json":
+            artifact_type = "index"
+            artifact_id = "index"
+        elif filename == "comments.json":
+            artifact_type = "comments"
+            artifact_id = "comments"
         else:
-            return "very_high"
+            # Return None for unrecognized files
+            return None
 
-    def _calculate_review_priority(self, changes: list[dict[str, Any]]) -> str:
-        """Calculate review priority based on changes."""
-        high_priority_patterns = [
-            "security", "auth", "crypto", "password", "token", "api_key",
-            "database", "migration", "schema", "config", "env"
-        ]
-
-        for change in changes:
-            file_path = change.get("file_path", "").lower()
-            if any(pattern in file_path for pattern in high_priority_patterns):
-                return "high"
-
-        total_changes = sum(
-            change.get("additions", 0) + change.get("deletions", 0)
-            for change in changes
-        )
-
-        if total_changes > 500:
-            return "high"
-        elif total_changes > 100:
-            return "medium"
-        else:
-            return "low"
-
-    async def _save_review_artifacts(self) -> list[str]:
-        """Save code review artifacts."""
-        output_files = []
-
-        # Create review output directory
-        review_dir = self.workspace_dir / "code_review_output"
-        review_dir.mkdir(exist_ok=True)
-
-        # Save review report
-        review_report_path = review_dir / "review_report.md"
-        review_report_path.write_text("# Code Review Report\n\nGenerated by Code Reviewer Agent\n")
-        output_files.append(str(review_report_path))
-
-        # Save review checklist
-        checklist_path = review_dir / "review_checklist.md"
-        checklist_path.write_text("# Code Review Checklist\n\n- [ ] Code quality\n- [ ] Test coverage\n- [ ] Security\n- [ ] Performance\n")
-        output_files.append(str(checklist_path))
-
-        # Save review metrics
-        metrics_path = review_dir / "review_metrics.json"
-        metrics_path.write_text('{"review_score": 85, "issues_found": 3, "suggestions": 7}')
-        output_files.append(str(metrics_path))
-
-        return output_files
-
-    async def _generate_review_metrics(self) -> dict[str, Any]:
-        """Generate review metrics and scoring."""
-        return {
-            "overall_score": 85,  # Mock score
-            "code_quality_score": 90,
-            "security_score": 80,
-            "performance_score": 85,
-            "maintainability_score": 88,
-            "test_coverage_score": 75,
-            "issues_found": {
-                "critical": 0,
-                "major": 1,
-                "minor": 2,
-                "suggestions": 7
-            },
-            "review_time_minutes": 15,
-            "lines_reviewed": 250
+        artifact = {
+            "artifact_type": artifact_type,
+            "actual_file_path": file_path,
+            "file_path": normalized_path,
+            "filename": filename,
+            "content_type": content_type,
+            "artifact_id": artifact_id,
+            "content": parsed_content,
         }
+        return artifact

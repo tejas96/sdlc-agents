@@ -14,6 +14,11 @@ RUN apt-get update && \
     npm install -g @anthropic-ai/claude-code && \
     rm -rf /var/lib/apt/lists/*
 
+# Install Playwright MCP and Firefox browser
+RUN npm install -g @playwright/test @playwright/mcp && \
+    npx playwright install firefox && \
+    npx playwright install-deps firefox
+
 # Install Poetry
 RUN pip install poetry==2.1.3
 

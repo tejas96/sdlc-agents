@@ -1,43 +1,68 @@
-"""Authentication schemas."""
+"""Authentication schemas for request/response models."""
 
-from pydantic import BaseModel, EmailStr
+from datetime import datetime
+
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
+
+from ..models.user import Provider
+
+
+class UserBase(BaseModel):
+    """Base user schema with common fields."""
+
+    name: str = Field(..., min_length=1, max_length=255, description="User's full name")
+    email: EmailStr = Field(..., description="User's email address")
+    provider: Provider = Field(default=Provider.PASS, description="Authentication provider")
+
+
+class UserCreate(UserBase):
+    """Schema for user registration."""
+
+    password: str = Field(..., min_length=8, description="User password (min 8 characters)")
+
+
+class UserUpdate(BaseModel):
+    """Schema for user update request."""
+
+    name: str | None = Field(None, min_length=1, max_length=255, description="User's full name")
+    email: EmailStr | None = Field(None, description="User's email address")
+    password: str | None = Field(None, min_length=8, description="User's password")
+    provider: Provider | None = Field(None, description="Authentication provider")
+    is_active: bool | None = Field(None, description="Account status")
 
 
 class UserLogin(BaseModel):
-    """User login schema."""
-    email: EmailStr
-    password: str
+    """Schema for user login."""
+
+    email: EmailStr = Field(..., description="User's email address")
+    password: str = Field(..., description="User password")
 
 
-class UserResponse(BaseModel):
-    """User response schema."""
-    id: int
-    email: str
-    username: str
-    full_name: str | None = None
-    is_active: bool
-    avatar_url: str | None = None
-    bio: str | None = None
-    organization: str | None = None
-    role: str | None = None
-    timezone: str = "UTC"
-    theme: str = "light"
-    github_username: str | None = None
-    slack_user_id: str | None = None
+class UserResponse(UserBase):
+    """Schema for user response (without sensitive data)."""
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_encoders={datetime: lambda v: v.isoformat()},
+    )
+
+    id: int = Field(..., description="User ID")
+    is_active: bool = Field(..., description="Account status")
+    created_at: datetime = Field(..., description="Account creation timestamp")
+    updated_at: datetime = Field(..., description="Last update timestamp")
 
 
 class Token(BaseModel):
-    """Token response schema."""
-    access_token: str
-    refresh_token: str
-    token_type: str = "bearer"
-    expires_in: int
+    """Schema for JWT token response."""
+
+    access_token: str = Field(..., description="JWT access token")
+    token_type: str = Field(default="bearer", description="Token type")
+    expires_in: int = Field(..., description="Token expiration time in seconds")
 
 
 class TokenData(BaseModel):
-    """Token data schema."""
-    user_id: int | None = None
-    email: str | None = None
+    """Schema for token payload data."""
+
+    user_id: int | None = Field(None, description="User ID from token")
+    email: str | None = Field(None, description="User email from token")
+    exp: datetime | None = Field(None, description="Token expiration time")

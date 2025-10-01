@@ -1,36 +1,39 @@
-"""Base agent workflow implementation."""
+"""Base protocol for agent workflow implementations."""
 
-import asyncio
 import shutil
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
-from claude_code_sdk import ClaudeSDKClient
-from jinja2 import Environment, FileSystemLoader
 from loguru import logger
 
-from app.agents.enums import AgentIdentifier, WorkflowStep
-from app.core.config import get_settings
+from app.agents.claude.orchestrator import ClaudeOrchestrator
+from app.agents.enums import AgentIdentifier
+from app.core.template_renderer import create_agent_renderer
+from app.models.user_agent_session import UserAgentSession
+from app.services.integration_service import IntegrationService
 
 
 class AgentWorkflow(ABC):
-    """Base class for all agent workflows."""
+    """
+    Protocol for agent workflow implementations.
+    All agent workflows must adhere to this interface.
 
-    identifier: AgentIdentifier
-    module: str
+    Based on backend-technical-design.md
+    """
+
+    # Subclasses should set this to the appropriate AgentIdentifier (e.g., AgentIdentifier.CODE_ANALYSIS)
+    identifier: AgentIdentifier | None = None
 
     def __init__(
         self,
         *,
         workspace_dir: Path,
         mcp_configs: dict[str, Any],
-        integration_service: Any = None,
-        system_prompt: Optional[str] = None,
-        llm_session_id: Optional[str] = None,
-        user_id: Optional[int] = None,
-        project_id: Optional[int] = None,
+        integration_service: IntegrationService,
+        system_prompt: str | None = None,
+        llm_session_id: str | None = None,
     ) -> None:
         """Initialize the agent workflow."""
         self.workspace_dir = workspace_dir
@@ -38,179 +41,169 @@ class AgentWorkflow(ABC):
         self.integration_service = integration_service
         self.system_prompt = system_prompt
         self.llm_session_id = llm_session_id
-        self.user_id = user_id
-        self.project_id = project_id
+        self.orchestrator = self._create_orchestrator()
+        self.prompt_renderer = create_agent_renderer()
 
-        # Initialize Claude SDK Client
-        settings = get_settings()
-        self.claude_sdk = ClaudeSDKClient(
-            api_key=settings.ANTHROPIC_API_KEY,
+        # Initialize directory paths
+        # workspace_dir structure: {root_dir}/{user_id}/{project_id}/{session_id}
+        # user_dir: {root_dir}/{user_id}
+        # files_dir: {root_dir}/{user_id}/files
+        self.user_dir = self.workspace_dir.parent.parent
+        self.files_dir = self.user_dir / "files"
+
+    def _create_orchestrator(self) -> ClaudeOrchestrator:
+        """Create the orchestrator for the agent workflow."""
+        return ClaudeOrchestrator(
+            system_prompt=self.system_prompt,
+            base_dir=self.workspace_dir,
+            mcp_configs=self.mcp_configs,
+            resume_session_id=self.llm_session_id,
         )
 
-        # Template environment
-        self.template_env = Environment(
-            loader=FileSystemLoader(Path(__file__).parent.parent / "templates")
+    async def _build_context(self, *, session: UserAgentSession, **extra: Any) -> dict[str, Any]:
+        """Construct rendering context from session data."""
+        # Merge mcps and custom_properties into a single context object
+        custom_properties: dict[str, Any] = session.custom_properties or {}
+        return {"mcps": session.mcps or [], **custom_properties, **extra}
+
+    async def _prepare_system_prompt(self, *, session: UserAgentSession, **extra: Any) -> str:
+        """
+        Default Jinja2-based system prompt renderer.
+        Looks for `app/agents/templates/<identifier>/system.md`.
+        """
+        context = await self._build_context(session=session, **extra)
+
+        return await self.prompt_renderer.render(
+            template_name=f"{self.identifier.value}/system.md",  # type: ignore
+            context=context,
         )
 
-    async def execute_workflow(
-        self,
-        *,
-        session: Any,
-        messages: list[dict[str, Any]]
-    ) -> AsyncIterator[dict[str, Any]]:
-        """Execute the complete agent workflow with all steps."""
+    async def _prepare_user_prompt(self, *, session: UserAgentSession, **extra: Any) -> str:
+        """Render user prompt for initial test generation from template."""
+        context = await self._build_context(session=session, **extra)
         try:
-            # Step 1: Preparation
-            async for chunk in self.prepare(session=session, messages=messages):
-                yield chunk
-
-            # Step 2: Main execution
-            async for chunk in self.run(session=session, messages=messages):
-                yield chunk
-
-            # Step 3: Finalization
-            async for chunk in self.finalize(session=session, messages=messages):
-                yield chunk
-
+            return await self.prompt_renderer.render(
+                template_name=f"{self.identifier.value}/user.md",  # type: ignore
+                context=context,
+            )
         except Exception as e:
-            logger.error(f"Workflow execution failed: {e}")
-            yield {
-                "type": "error",
-                "step": "execution",
-                "message": str(e),
-                "timestamp": asyncio.get_event_loop().time()
-            }
+            logger.error(f"Error rendering user prompt for {self.identifier.value}: {e}")  # type: ignore
+            return ""
+
+    async def _prepare_user_followup_prompt(self, *, session: UserAgentSession, feedback: str, **extra: Any) -> str:
+        """Render user followup prompt for test case generation from template."""
+        extra.update({"user_feedback": feedback})
+        context = await self._build_context(session=session, **extra)
+        return await self.prompt_renderer.render(
+            template_name=f"{self.identifier.value}/user_followup.md",  # type: ignore
+            context=context,
+        )
 
     @abstractmethod
-    async def prepare(
-        self,
-        *,
-        session: Any,
-        messages: list[dict[str, Any]]
-    ) -> AsyncIterator[dict[str, Any]]:
-        """Perform pre-execution setup."""
-        pass
+    def run(self, *, session: UserAgentSession, messages: list[dict[str, Any]]) -> AsyncIterator[dict[str, Any]]:
+        """
+        Execute the agent workflow and stream responses.
+
+        Args:
+            session: The session for the agent
+            messages: The messages for the agent
+
+        Yields:
+            dict: Agent events in internal format
+        """
+        ...
 
     @abstractmethod
-    async def run(
-        self,
-        *,
-        session: Any,
-        messages: list[dict[str, Any]]
-    ) -> AsyncIterator[dict[str, Any]]:
-        """Execute the main agent workflow."""
-        pass
+    def prepare(self, *, session: UserAgentSession, messages: list[dict[str, Any]]) -> AsyncIterator[dict[str, Any]]:
+        """
+        Optional hook: Perform pre-steps in workspace before orchestration.
+        E.g., cloning repositories, setting up environment.
+
+        Args:
+            session: The session for the agent
+            messages: The messages for the agent
+
+        Yields:
+            dict: Agent events in internal format
+        """
+        ...
 
     @abstractmethod
-    async def finalize(
-        self,
-        *,
-        session: Any,
-        messages: list[dict[str, Any]]
-    ) -> AsyncIterator[dict[str, Any]]:
-        """Perform post-execution cleanup."""
-        pass
+    def finalize(self, *, session: UserAgentSession, messages: list[dict[str, Any]]) -> AsyncIterator[dict[str, Any]]:
+        """
+        Optional hook: Post-steps after orchestration.
+        E.g., saving artifacts, cleaning up temporary files.
 
-    async def _prepare_system_prompt(self, **kwargs) -> str:
-        """Prepare the system prompt using templates."""
-        template_name = f"{self.identifier.value}/system.j2"
+        Args:
+            session: The session for the agent
+            messages: The messages for the agent
+
+        Yields:
+            dict: Agent events in internal format
+        """
+        ...
+
+    # helper methods
+    def _relativize_to_workspace(self, path_str: str | Path, anchor: str) -> str:
+        """Return a POSIX-style path relative to the workflow workspace.
+
+        Falls back to searching for anchor segment (e.g., "tests/" or "docs/")
+        if normal relativization fails.
+        """
         try:
-            template = self.template_env.get_template(template_name)
-            return template.render(**kwargs)
-        except Exception as e:
-            logger.warning(f"Failed to load template {template_name}: {e}")
-            return self.system_prompt or f"You are an AI assistant specialized in {self.identifier.value.replace('_', ' ')}."
+            abs_path = Path(path_str) if isinstance(path_str, str) else path_str
+            ws = self.workspace_dir
+            return abs_path.resolve().relative_to(ws.resolve()).as_posix()
+        except Exception:
+            s = str(path_str).replace("\\", "/")
+            # Prefer trimming to anchor segment if present
+            idx = s.find(anchor)
+            if idx != -1:
+                return s[idx:].lstrip("/")
+            return s.lstrip("/")
 
-    async def _prepare_user_prompt(self, **kwargs) -> str:
-        """Prepare the user prompt using templates."""
-        template_name = f"{self.identifier.value}/user.j2"
+    async def _read_file_content(self, file_path: str) -> str | None:
+        """Read file content from filesystem for edit operations.
+
+        Args:
+            file_path: File path (relative to workspace or absolute)
+
+        Returns:
+            File content as string, or None if file doesn't exist or can't be read
+        """
         try:
-            template = self.template_env.get_template(template_name)
-            return template.render(**kwargs)
-        except Exception as e:
-            logger.warning(f"Failed to load template {template_name}: {e}")
-            return "Please analyze the provided files and generate appropriate output."
+            # Handle both absolute and relative paths
+            if Path(file_path).is_absolute():
+                full_path = Path(file_path)
+            else:
+                full_path = self.workspace_dir / file_path
 
-    async def _prepare_user_followup_prompt(self, **kwargs) -> str:
-        """Prepare follow-up prompt using templates."""
-        template_name = f"{self.identifier.value}/followup.j2"
+            # Check if file exists and read content
+            if full_path.exists() and full_path.is_file():
+                return full_path.read_text(encoding="utf-8")
+            else:
+                logger.warning(f"File not found for edit operation: {full_path}")
+                return None
+
+        except Exception as exc:
+            logger.warning(f"Failed to read file content for edit operation: {file_path}. Error: {exc}")
+            return None
+
+    async def _copy_file_to_workspace(self, file_name: str) -> None:
+        """Copy a file from user's file storage to the workspace.
+
+        Args:
+            file_name: Name of the file to copy
+        """
         try:
-            template = self.template_env.get_template(template_name)
-            return template.render(**kwargs)
+            source_file = self.files_dir / file_name
+
+            if source_file.exists() and source_file.is_file():
+                # Copy to workspace root for easy access
+                target_file = self.workspace_dir / file_name
+                shutil.copy2(source_file, target_file)
+                logger.info(f"Copied file {file_name} from user storage to workspace", extra={"file": file_name})
+            else:
+                logger.warning(f"File {file_name} not found in user file storage", extra={"file": file_name})
         except Exception as e:
-            logger.warning(f"Failed to load template {template_name}: {e}")
-            return "Please continue with the analysis."
-
-    async def _copy_files_to_workspace(self, file_paths: list[Path]) -> None:
-        """Copy files to the agent workspace."""
-        self.workspace_dir.mkdir(parents=True, exist_ok=True)
-
-        for file_path in file_paths:
-            if file_path.exists():
-                dest_path = self.workspace_dir / file_path.name
-                shutil.copy2(file_path, dest_path)
-                logger.info(f"Copied {file_path} to {dest_path}")
-
-    async def _cleanup_workspace(self) -> None:
-        """Clean up the agent workspace."""
-        if self.workspace_dir.exists():
-            shutil.rmtree(self.workspace_dir)
-            logger.info(f"Cleaned up workspace: {self.workspace_dir}")
-
-    async def _stream_claude_response(
-        self,
-        messages: list[dict[str, str]]
-    ) -> AsyncIterator[dict[str, Any]]:
-        """Stream responses from Claude SDK."""
-        try:
-            # Convert messages to Claude format
-            claude_messages = []
-            for msg in messages:
-                claude_messages.append({
-                    "role": msg.get("role", "user"),
-                    "content": msg.get("content", "")
-                })
-
-            # For now, create a mock streaming response
-            # TODO: Implement actual Claude SDK streaming when API is available
-            mock_response = f"Analysis complete for {len(messages)} messages. This is a mock response until Claude API key is configured."
-
-            # Simulate streaming by yielding chunks
-            words = mock_response.split()
-            for i, word in enumerate(words):
-                yield {
-                    "type": "claude_response",
-                    "data": {
-                        "content": word + " ",
-                        "role": "assistant"
-                    },
-                    "timestamp": asyncio.get_event_loop().time()
-                }
-                await asyncio.sleep(0.1)  # Simulate processing time
-
-        except Exception as e:
-            logger.error(f"Claude streaming failed: {e}")
-            yield {
-                "type": "error",
-                "message": f"Claude API error: {e!s}",
-                "timestamp": asyncio.get_event_loop().time()
-            }
-
-    def _emit_step_update(self, step: WorkflowStep, message: str, data: Any = None) -> dict[str, Any]:
-        """Emit a workflow step update."""
-        return {
-            "type": "step_update",
-            "step": step.value,
-            "message": message,
-            "data": data,
-            "timestamp": asyncio.get_event_loop().time()
-        }
-
-    def _emit_progress_update(self, progress: int, message: str) -> dict[str, Any]:
-        """Emit a progress update."""
-        return {
-            "type": "progress",
-            "progress": progress,
-            "message": message,
-            "timestamp": asyncio.get_event_loop().time()
-        }
+            logger.warning(f"Failed to copy file {file_name}: {e}", extra={"file": file_name})

@@ -1,27 +1,38 @@
 """Pydantic schemas for request/response models."""
 
-from .agent import AgentListResponse, AgentResponse
-from .auth import Token, TokenData, UserLogin, UserResponse
-from .integration import IntegrationListResponse, IntegrationResponse
-from .project import ProjectListResponse, ProjectResponse
-from .workflow import WorkflowListResponse, WorkflowResponse
+from .agent import AIAgentListResponse, AIAgentResponse
+from .auth import Token, TokenData, UserBase, UserCreate, UserLogin, UserResponse
+from .code_assistance import CodeAssistanceRequest, CodeAssistanceResponse
+from .file_upload import FileDeleteResponse, FileUploadResponse
+from .monitoring import IncidentResponse, MonitoringFilters, ServiceResponse
+from .project import ProjectListResponse
+from .user_agent_session import SessionListResponse, SessionResponse
 
 __all__ = [
     # Auth schemas
+    "UserBase",
+    "UserCreate",
     "UserLogin",
     "UserResponse",
     "Token",
     "TokenData",
-    # Project schemas
-    "ProjectResponse",
-    "ProjectListResponse",
+    "RefreshTokenRequest",
+    # Code assistance schemas
+    "CodeAssistanceRequest",
+    "CodeAssistanceResponse",
     # Agent schemas
-    "AgentResponse",
-    "AgentListResponse",
-    # Workflow schemas
-    "WorkflowResponse",
-    "WorkflowListResponse",
-    # Integration schemas
-    "IntegrationResponse",
-    "IntegrationListResponse",
+    "AIAgentResponse",
+    "AIAgentListResponse",
+    # Project schemas
+    "ProjectListResponse",
+    # Session schemas
+    "SessionResponse",
+    "SessionListResponse",
+    # File upload schemas
+    "FileUploadResponse",
+    "FileDeleteResponse",
+    # Monitoring schemas
+    "ServiceResponse",
+    "IncidentResponse",
+    "MonitoringFilters",
 ]

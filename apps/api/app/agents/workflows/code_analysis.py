@@ -1,191 +1,169 @@
-"""Code Analysis Agent workflow implementation."""
+"""Code documentation agent workflow implementation."""
 
 from collections.abc import AsyncIterator
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
+from urllib.parse import urlparse
 
-from app.agents.enums import AgentIdentifier, WorkflowStep
+from loguru import logger
+
+from app.agents.enums import AgentIdentifier
+from app.agents.git.ops import GitOperationError, GitOps
 from app.agents.workflows.base import AgentWorkflow
+from app.agents.workflows.factory import register
+from app.integrations.enums import IntegrationProvider
+from app.models.user_agent_session import UserAgentSession
+from app.services.integration_service import IntegrationService
 
 
+@register(AgentIdentifier.CODE_ANALYSIS)
 class CodeAnalysisWorkflow(AgentWorkflow):
-    """AI agent for comprehensive code analysis and documentation generation."""
+    """Code documentation workflow using Claude orchestrator."""
 
+    # Used by base to select templates folder: app/agents/templates/code_analysis/*
     identifier = AgentIdentifier.CODE_ANALYSIS
-    module = "development"
+
+    def __init__(
+        self,
+        *,
+        workspace_dir: Path,
+        mcp_configs: dict[Any, Any],
+        integration_service: IntegrationService,
+        system_prompt: str | None = None,
+        llm_session_id: str | None = None,
+    ) -> None:
+        """Initialize workflow with required parameters."""
+        super().__init__(
+            workspace_dir=workspace_dir,
+            mcp_configs=mcp_configs,
+            integration_service=integration_service,
+            system_prompt=system_prompt,
+            llm_session_id=llm_session_id,
+        )
+        self.git_ops = GitOps()
+
+    async def _get_github_token(self) -> str | None:
+        """Get the GitHub token for the session."""
+        integration = await self.integration_service.crud.get_by_provider(provider=IntegrationProvider.GITHUB)
+        if integration:
+            return await self.integration_service.get_access_token(integration_id=integration.id)  # type: ignore
+        return None
+
+    async def _prepare_followup_system_prompt(self) -> str:
+        """Prepare the followup system prompt for the code documentation workflow."""
+        return await self.prompt_renderer.render(
+            template_name=f"{self.identifier.value}/system_followup.md",
+            context={},
+        )
+
+    async def _prepare_system_prompt(self, session: UserAgentSession, **extra: Any) -> str:
+        """
+        Choose the correct template for system prompt:
+        - If continuing an existing LLM session → render followup template via base helper
+        - Else → render system template via base helper
+        """
+        if self.llm_session_id:
+            return await self._prepare_followup_system_prompt()
+        return await super()._prepare_system_prompt(session=session)
 
     async def prepare(
-        self,
-        *,
-        session: Any,
-        messages: list[dict[str, Any]]
+        self, *, session: UserAgentSession, messages: list[dict[str, Any]]
     ) -> AsyncIterator[dict[str, Any]]:
-        """Prepare workspace and analyze code structure."""
-        yield self._emit_step_update(WorkflowStep.PREPARE, "Initializing code analysis workspace")
+        """Prepare workspace for code documentation by cloning repositories."""
+        # check if session already exists
+        if session.llm_session_id:
+            logger.info(f"Session {session.id} already has an LLM session ID: {session.llm_session_id}")
+            logger.info("Skipping prepare and running directly")
 
-        # Create workspace directory
-        self.workspace_dir.mkdir(parents=True, exist_ok=True)
+            return
+        logger.info(f"Preparing workspace {self.workspace_dir} for code documentation")
 
-        yield self._emit_progress_update(20, "Workspace created")
+        # Extract repository URLs from messages'
+        properties = session.custom_properties
+        repo_urls = properties.get("github_repos", [])
 
-        # Copy source files to workspace
-        source_files = self._extract_file_paths_from_messages(messages)
-        await self._copy_files_to_workspace(source_files)
+        if not repo_urls:
+            logger.info("No repositories specified for cloning")
+            raise ValueError("No repositories specified for cloning")
 
-        yield self._emit_progress_update(50, f"Copied {len(source_files)} files to workspace")
+        try:
+            repos_dir = self.workspace_dir
+            repos_dir.mkdir(parents=True, exist_ok=True)
 
-        # Analyze project structure
-        project_structure = await self._analyze_project_structure()
+            # Resolve provider tokens once per host (V1: only GitHub)
+            github_token: str | None = await self._get_github_token()
 
-        yield self._emit_step_update(
-            WorkflowStep.PREPARE,
-            "Workspace prepared for code analysis",
-            {"structure": project_structure, "file_count": len(source_files)}
-        )
+            # Clone each repository
+            for repo_data in repo_urls:
+                repo_url = repo_data.get("url")
+                repo_branch = repo_data.get("branch", "main")
+                logger.info(f"Cloning repository: {repo_url}")
+                host = urlparse(repo_url).netloc.lower()
+                access_token = github_token if "github.com" in host else None
 
-    async def run(
-        self,
-        *,
-        session: Any,
-        messages: list[dict[str, Any]]
-    ) -> AsyncIterator[dict[str, Any]]:
-        """Execute code analysis using Claude."""
-        yield self._emit_step_update(WorkflowStep.EXECUTE, "Starting code analysis")
+                tool_call_id = f"git_clone_{hash(str(repo_url))}"
+                # Git clone operations
+                yield {
+                    "type": "tool_call",
+                    "toolCallId": tool_call_id,
+                    "toolName": "git_clone",
+                    "args": {
+                        "url": repo_url,
+                        "prompt": f"Cloning repository {repo_url}...",
+                    },
+                }
+                # Add
+                await self.git_ops.clone_repository(
+                    url=repo_url,
+                    destination_dir=repos_dir,
+                    branch=repo_branch,
+                    access_token=access_token,
+                )
+                yield {
+                    "type": "tool_result",
+                    "toolCallId": tool_call_id,
+                    "result": f"Repository {repo_url} successfully cloned to: {repos_dir}/{repo_url.split('/')[-1]}",
+                }
 
-        # Prepare prompts
-        system_prompt = await self._prepare_system_prompt(
-            workspace_dir=self.workspace_dir,
-            analysis_type="comprehensive"
-        )
+            logger.info(f"Successfully cloned {len(repo_urls)} repositories into {repos_dir}")
 
-        user_prompt = await self._prepare_user_prompt(
-            files=list(self.workspace_dir.glob("**/*")),
-            analysis_focus="documentation,architecture,patterns"
-        )
+        except GitOperationError as e:
+            logger.error(f"Failed to clone repositories: {e}")
+            raise
+        except Exception as e:
+            logger.error(f"Unexpected error during repository preparation: {e}")
+            raise
 
-        # Prepare messages for Claude
-        claude_messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt}
-        ]
+    async def run(self, *, session: UserAgentSession, messages: list[dict[str, Any]]) -> AsyncIterator[dict[str, Any]]:
+        """Run the code documentation workflow."""
+        try:
+            logger.info("Starting code documentation workflow")
 
-        yield self._emit_progress_update(70, "Analyzing code with AI")
+            # call prepare
+            async for event in self.prepare(session=session, messages=messages):
+                yield event
 
-        # Stream Claude response
-        async for chunk in self._stream_claude_response(claude_messages):
-            yield chunk
+            system_prompt = await self._prepare_system_prompt(session=session)
+
+            if session.llm_session_id is None:
+                user_prompt = await super()._prepare_user_prompt(session=session, messages=messages)
+                messages[0]["content"] = user_prompt
+
+            # Stream responses from Claude Code SDK directly
+            logger.info(f"Invoking Claude Code SDK with system prompt: {system_prompt}")
+            async for response in self.orchestrator.run(messages, system_prompt=system_prompt):
+                yield response
+            logger.info("Claude Code SDK invocation completed")
+
+        except Exception as e:
+            logger.error(f"Code documentation workflow failed: {e}")
+            yield {"type": "finish", "data": {"finishReason": "error", "error": str(e)}}
 
     async def finalize(
-        self,
-        *,
-        session: Any,
-        messages: list[dict[str, Any]]
+        self, *, session: UserAgentSession, messages: list[dict[str, Any]]
     ) -> AsyncIterator[dict[str, Any]]:
-        """Save analysis results and clean up."""
-        yield self._emit_step_update(WorkflowStep.FINALIZE, "Saving analysis results")
-
-        # Save generated documentation
-        output_files = await self._save_analysis_artifacts()
-
-        yield self._emit_progress_update(90, "Analysis artifacts saved")
-
-        # Clean up workspace if needed
-        # await self._cleanup_workspace()
-
-        yield self._emit_step_update(
-            WorkflowStep.FINALIZE,
-            "Code analysis completed successfully",
-            {"output_files": output_files}
-        )
-
-    def _extract_file_paths_from_messages(self, messages: list[dict[str, Any]]) -> list[Path]:
-        """Extract file paths from user messages."""
-        file_paths = []
-        for message in messages:
-            if message.get("type") == "file_upload":
-                file_path = Path(message.get("file_path", ""))
-                if file_path.exists():
-                    file_paths.append(file_path)
-        return file_paths
-
-    async def _analyze_project_structure(self) -> dict[str, Any]:
-        """Analyze the project structure."""
-        structure = {
-            "total_files": 0,
-            "file_types": {},
-            "directories": [],
-            "languages": set()
-        }
-
-        for file_path in self.workspace_dir.rglob("*"):
-            if file_path.is_file():
-                structure["total_files"] += 1
-                suffix = file_path.suffix.lower()
-                structure["file_types"][suffix] = structure["file_types"].get(suffix, 0) + 1
-
-                # Detect language
-                language = self._detect_language(suffix)
-                if language:
-                    structure["languages"].add(language)
-            elif file_path.is_dir():
-                structure["directories"].append(str(file_path.relative_to(self.workspace_dir)))
-
-        structure["languages"] = list(structure["languages"])
-        return structure
-
-    def _detect_language(self, file_extension: str) -> Optional[str]:
-        """Detect programming language from file extension."""
-        language_map = {
-            ".py": "Python",
-            ".js": "JavaScript",
-            ".ts": "TypeScript",
-            ".tsx": "TypeScript React",
-            ".jsx": "JavaScript React",
-            ".java": "Java",
-            ".go": "Go",
-            ".rs": "Rust",
-            ".cpp": "C++",
-            ".c": "C",
-            ".cs": "C#",
-            ".php": "PHP",
-            ".rb": "Ruby",
-            ".swift": "Swift",
-            ".kt": "Kotlin",
-            ".scala": "Scala",
-            ".r": "R",
-            ".sql": "SQL",
-            ".sh": "Shell",
-            ".yaml": "YAML",
-            ".yml": "YAML",
-            ".json": "JSON",
-            ".xml": "XML",
-            ".html": "HTML",
-            ".css": "CSS",
-            ".scss": "SCSS",
-            ".less": "LESS",
-            ".md": "Markdown",
-            ".rst": "reStructuredText",
-        }
-        return language_map.get(file_extension)
-
-    async def _save_analysis_artifacts(self) -> list[str]:
-        """Save analysis artifacts to the workspace."""
-        output_files = []
-
-        # Create output directory
-        output_dir = self.workspace_dir / "analysis_output"
-        output_dir.mkdir(exist_ok=True)
-
-        # Save README if generated
-        readme_path = output_dir / "README.md"
-        if not readme_path.exists():
-            readme_path.write_text("# Code Analysis Results\n\nGenerated by Code Analysis Agent")
-            output_files.append(str(readme_path))
-
-        # Save architecture documentation
-        arch_path = output_dir / "ARCHITECTURE.md"
-        if not arch_path.exists():
-            arch_path.write_text("# Architecture Documentation\n\nGenerated by Code Analysis Agent")
-            output_files.append(str(arch_path))
-
-        return output_files
+        """Finalize code documentation workflow by organizing artifacts."""
+        logger.info(f"Finalizing code documentation workflow in {self.workspace_dir}")
+        # No-op finalize for now: yield nothing but keep async generator type
+        for _ in ():  # empty iterator keeps this as an async generator without unreachable code
+            yield {}
