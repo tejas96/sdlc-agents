@@ -42,19 +42,20 @@ prestart:
 	@echo "⏳ Running prestart routine"
 	@$(PYTHON) manage.py prestart
 
+
 # Run the app via manage.py run. Accepts ARGS or HOST/PORT/RELOAD variables.
 run:
 	@echo "🚀 Starting app via manage.py run"
 	@if [ -n "$(ARGS)" ]; then \
 		$(PYTHON) manage.py run $(ARGS); \
 	else \
-		# Build args from HOST/PORT/RELOAD if provided
 		ARGS_BUILT=""; \
 		if [ -n "$(HOST)" ]; then ARGS_BUILT="$$ARGS_BUILT --host $(HOST)"; fi; \
 		if [ -n "$(PORT)" ]; then ARGS_BUILT="$$ARGS_BUILT --port $(PORT)"; fi; \
-		if [ -n "$(RELOAD)" ]; then ARGS_BUILT="$$ARGS_BUILT --reload $(RELOAD)"; fi; \
+		if [ -n "$(RELOAD)" ]; then ARGS_BUILT="$$ARGS_BUILT --reload"; fi; \
 		$(PYTHON) manage.py run $$ARGS_BUILT; \
 	fi
+
 
 clean:
 	@echo "🧹 Cleaning __pycache__ and .pytest_cache"
